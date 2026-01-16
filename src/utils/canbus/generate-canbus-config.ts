@@ -1,4 +1,4 @@
-import type { PLCRemoteDevice, ModbusIOGroup } from '@root/types/PLC/open-plc'
+import type { ModbusIOGroup,PLCRemoteDevice } from '@root/types/PLC/open-plc'
 
 // Struktur per Group/Pesan CAN (analog dengan Modbus IO Point)
 interface CanMasterIOPoint {

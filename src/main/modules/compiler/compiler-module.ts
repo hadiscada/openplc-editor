@@ -9,14 +9,15 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { CreateXMLFile } from '@root/main/utils'
+import { Project } from '@root/renderer/components/_organisms/explorer/project'
 import { ProjectState } from '@root/renderer/store/slices'
 import type { DeviceConfiguration, DevicePin } from '@root/types/PLC/devices'
 import { XmlGenerator } from '@root/utils'
+import { generateCanbusConfig } from '@root/utils/canbus/generate-canbus-config'
 import { type CppPouData as CppPouDataCode, generateCBlocksCode } from '@root/utils/cpp/generateCBlocksCode'
 import { type CppPouData as CppPouDataHeader, generateCBlocksHeader } from '@root/utils/cpp/generateCBlocksHeader'
 import { generateModbusMasterConfig } from '@root/utils/modbus/generate-modbus-master-config'
 import { generateModbusSlaveConfig } from '@root/utils/modbus/generate-modbus-slave-config'
-import { generateCanbusConfig } from '@root/utils/canbus/generate-canbus-config'
 import { parsePlcStatus } from '@root/utils/plc-status'
 import { getRuntimeHttpsOptions } from '@root/utils/runtime-https-config'
 import { generateS7CommConfig } from '@root/utils/s7comm'
@@ -26,7 +27,6 @@ import JSZip from 'jszip'
 
 import type { ArduinoCoreControl, HalsFile } from './compiler-types'
 import { FormatMacAddress } from './utils/formatters'
-import { Project } from '@root/renderer/components/_organisms/explorer/project'
 
 interface MethodsResult<T> {
   success: boolean
