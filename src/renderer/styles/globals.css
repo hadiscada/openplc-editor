@@ -29,11 +29,11 @@
 
 @layer base {
   :root {
-    --primary-default: #0464fb;
-    --primary-light: #b4d0fe;
-    --primary-medium: #0350c9;
-    --primary-medium-dark: #023c97;
-    --primary-dark: #011e4b;
+    --primary-default: #02973b;
+    --primary-light: #81f561;
+    --primary-medium: #03c934;
+    --primary-medium-dark: #027519;
+    --primary-dark: #014b12;
     /* Fallback variables to set the height of the titlebar based on OS */
     --oplc-title-bar-height: 2rem;
     --fallback-darwin-title-bar-height: 1.75rem;

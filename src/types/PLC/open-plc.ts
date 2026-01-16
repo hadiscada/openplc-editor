@@ -433,7 +433,7 @@ const ModbusIOGroupSchema = z.object({
   offset: z.string(),
   length: z.number(),
   errorHandling: ModbusErrorHandlingSchema,
-  ioPoints: z.array(ModbusIOPointSchema),
+  ioPoints: z.array(ModbusIOPointSchema),  
 })
 type ModbusIOGroup = z.infer<typeof ModbusIOGroupSchema>
 
@@ -445,7 +445,13 @@ const ModbusTcpConfigSchema = z.object({
 })
 type ModbusTcpConfig = z.infer<typeof ModbusTcpConfigSchema>
 
-const PLCRemoteDeviceProtocolSchema = z.enum(['modbus-tcp', 'ethernet-ip', 'ethercat', 'profinet'])
+const CanbusConfigSchema = z.object({
+  enabled: z.boolean(),
+  rate: z.number(),  
+})
+type CanbusConfig = z.infer<typeof CanbusConfigSchema>
+
+const PLCRemoteDeviceProtocolSchema = z.enum(['modbus-tcp', 'ethernet-ip', 'ethercat', 'profinet', 'canbus'])
 type PLCRemoteDeviceProtocol = z.infer<typeof PLCRemoteDeviceProtocolSchema>
 
 const PLCRemoteDeviceSchema = z.object({
@@ -474,6 +480,7 @@ const PLCProjectDataSchema = z.object({
   pous: z.array(PLCPouSchema),
   configuration: PLCConfigurationSchema,
   servers: z.array(PLCServerSchema).optional(),
+  canconfig: CanbusConfigSchema.optional(),
   remoteDevices: z.array(PLCRemoteDeviceSchema).optional(),
   debugVariables: PLCDebugVariablesSchema,
   deletedPous: z
@@ -521,13 +528,14 @@ type PLCProject = z.infer<typeof PLCProjectSchema>
 export {
   baseTypeSchema,
   bodySchema,
+  CanbusConfigSchema,
   ModbusErrorHandlingSchema,
   ModbusFunctionCodeSchema,
   ModbusIOGroupSchema,
   ModbusIOPointSchema,
   ModbusSlaveBufferMappingSchema,
   ModbusSlaveConfigSchema,
-  ModbusTcpConfigSchema,
+  ModbusTcpConfigSchema,  
   PLCArrayDatatypeSchema,
   PLCConfigurationSchema,
   PLCDataTypeSchema,
@@ -564,6 +572,7 @@ export {
 export type {
   BaseType,
   BodySchema,
+  CanbusConfig,
   ModbusErrorHandling,
   ModbusFunctionCode,
   ModbusIOGroup,

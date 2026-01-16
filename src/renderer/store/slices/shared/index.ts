@@ -1398,6 +1398,7 @@ export const createSharedSlice: StateCreator<
       })
 
       const projectData = PLCProjectSchema.safeParse(project)
+
       if (!projectData.success) {
         console.error('Project validation failed:', projectData.error)
         console.error('Detailed errors:', JSON.stringify(projectData.error.issues, null, 2))
@@ -1411,7 +1412,7 @@ export const createSharedSlice: StateCreator<
           success: false,
           reason: { title: 'Error in the save request!', description: 'The project data is not valid.' },
         }
-      }
+      }     
 
       const deviceConfiguration = deviceConfigurationSchema.safeParse(device.configuration)
       if (!deviceConfiguration.success) {

@@ -79,28 +79,53 @@ const initializeServerProtocolConfig = (serverData: PLCServer): PLCServer => {
 }
 
 const getFunctionCodeInfo = (
-  functionCode: '1' | '2' | '3' | '4' | '5' | '6' | '15' | '16',
-): { type: string; iecPrefix: string; isBit: boolean } => {
-  switch (functionCode) {
-    case '1':
-      return { type: 'Digital Input (Coil Status)', iecPrefix: '%IX', isBit: true }
-    case '2':
-      return { type: 'Digital Input (Discrete Input)', iecPrefix: '%IX', isBit: true }
-    case '3':
-      return { type: 'Analog Input (Holding Register)', iecPrefix: '%IW', isBit: false }
-    case '4':
-      return { type: 'Analog Input (Input Register)', iecPrefix: '%IW', isBit: false }
-    case '5':
-      return { type: 'Digital Output (Single Coil)', iecPrefix: '%QX', isBit: true }
-    case '6':
-      return { type: 'Analog Output (Single Register)', iecPrefix: '%QW', isBit: false }
-    case '15':
-      return { type: 'Digital Output (Multiple Coils)', iecPrefix: '%QX', isBit: true }
-    case '16':
-      return { type: 'Analog Output (Multiple Registers)', iecPrefix: '%QW', isBit: false }
-    default:
-      return { type: 'Unknown', iecPrefix: '%MW', isBit: false }
-  }
+  functionCode: '1' | '2' | '3' | '4' | '5' | '6' | '15' | '16', 
+  protocol: string 
+): { type: string; iecPrefix: string; isBit: boolean} => {
+  if (protocol === "canbus")
+  {
+    switch (functionCode) {
+        case '1':
+          return { type: 'Digital Input', iecPrefix: '%IX', isBit: true }
+        case '2':
+          return { type: 'Digital Input', iecPrefix: '%IX', isBit: true }
+        case '3':
+          return { type: 'Analog Input', iecPrefix: '%IW', isBit: false }
+        case '4':
+          return { type: 'Analog Input', iecPrefix: '%IW', isBit: false }
+        case '5':
+          return { type: 'Digital Output', iecPrefix: '%QX', isBit: true }
+        case '6':
+          return { type: 'Analog Output', iecPrefix: '%QW', isBit: false }
+        case '15':
+          return { type: 'Digital Output', iecPrefix: '%QX', isBit: true }
+        case '16':
+          return { type: 'Analog Output', iecPrefix: '%QW', isBit: false }
+        default:
+          return { type: 'Unknown', iecPrefix: '%MW', isBit: false }
+      }    
+  } else {
+    switch (functionCode) {
+        case '1':
+          return { type: 'Digital Input (Coil Status)', iecPrefix: '%IX', isBit: true }
+        case '2':
+          return { type: 'Digital Input (Discrete Input)', iecPrefix: '%IX', isBit: true }
+        case '3':
+          return { type: 'Analog Input (Holding Register)', iecPrefix: '%IW', isBit: false }
+        case '4':
+          return { type: 'Analog Input (Input Register)', iecPrefix: '%IW', isBit: false }
+        case '5':
+          return { type: 'Digital Output (Single Coil)', iecPrefix: '%QX', isBit: true }
+        case '6':
+          return { type: 'Analog Output (Single Register)', iecPrefix: '%QW', isBit: false }
+        case '15':
+          return { type: 'Digital Output (Multiple Coils)', iecPrefix: '%QX', isBit: true }
+        case '16':
+          return { type: 'Analog Output (Multiple Registers)', iecPrefix: '%QW', isBit: false }
+        default:
+          return { type: 'Unknown', iecPrefix: '%MW', isBit: false }
+      }    
+  }  
 }
 
 const generateIOPoints = (
@@ -108,8 +133,9 @@ const generateIOPoints = (
   length: number,
   groupName: string,
   usedAddresses: Set<string>,
+  protocol: string,
 ): ModbusIOPoint[] => {
-  const { type, iecPrefix, isBit } = getFunctionCodeInfo(functionCode)
+  const { type, iecPrefix, isBit } = getFunctionCodeInfo(functionCode, protocol)
   const points: ModbusIOPoint[] = []
 
   let currentAddress = 0
@@ -1656,7 +1682,7 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
             response = { ok: false, message: 'Remote device not found' }
             return
           }
-          if (device.protocol !== 'modbus-tcp') {
+          if (device.protocol !== 'modbus-tcp' && device.protocol !== 'canbus') {
             response = { ok: false, message: 'Device is not a Modbus/TCP device' }
             return
           }
@@ -1700,7 +1726,7 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
             response = { ok: false, message: 'Remote device not found' }
             return
           }
-          if (device.protocol !== 'modbus-tcp') {
+          if (device.protocol !== 'modbus-tcp' && device.protocol !== 'canbus') {
             response = { ok: false, message: 'Device is not a Modbus/TCP device' }
             return
           }
@@ -1722,10 +1748,10 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
               }
             }
           }
-          const ioPoints = generateIOPoints(ioGroup.functionCode, ioGroup.length, ioGroup.name, usedAddresses)
+          const ioPoints = generateIOPoints(ioGroup.functionCode, ioGroup.length, ioGroup.name, usedAddresses, device.protocol)
           device.modbusTcpConfig.ioGroups.push({
             ...ioGroup,
-            ioPoints,
+            ioPoints,            
           })
         }),
       )
@@ -1779,7 +1805,7 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
                 }
               }
             }
-            ioGroup.ioPoints = generateIOPoints(ioGroup.functionCode, ioGroup.length, ioGroup.name, usedAddresses)
+            ioGroup.ioPoints = generateIOPoints(ioGroup.functionCode, ioGroup.length, ioGroup.name, usedAddresses, device.protocol)
           }
         }),
       )

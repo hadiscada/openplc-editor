@@ -139,7 +139,7 @@ const CreateServerEditor = (name: string, protocol: 'modbus-tcp' | 's7comm' | 'e
 
 const CreateRemoteDeviceEditor = (
   name: string,
-  protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet',
+  protocol: 'modbus-tcp' | 'ethernet-ip' | 'ethercat' | 'profinet' | 'canbus',
 ): EditorModel => {
   const editor = CreateEditorObject({
     type: 'plc-remote-device',

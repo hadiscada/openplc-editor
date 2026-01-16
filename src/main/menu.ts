@@ -400,10 +400,6 @@ export default class MenuBuilder {
       label: i18n.t('menu:help.label'),
       submenu: [
         {
-          label: i18n.t('menu:help.submenu.communitySupport'),
-          click: () => void this.handleOpenExternalLink('https://openplc.discussion.community/'),
-        },
-        {
           label: i18n.t('menu:help.submenu.about'),
           accelerator: 'F1',
           click: () => void this.handleOpenAboutModal(),
@@ -649,10 +645,6 @@ export default class MenuBuilder {
         label: i18n.t('menu:help.label'),
         role: 'help',
         submenu: [
-          {
-            label: i18n.t('menu:help.submenu.communitySupport'),
-            click: () => void this.handleOpenExternalLink('https://openplc.discussion.community/'),
-          },
           {
             label: i18n.t('menu:help.submenu.about'),
             accelerator: 'F1',

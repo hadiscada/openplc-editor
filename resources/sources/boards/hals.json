@@ -1,4 +1,8 @@
 {
+  "Gespant PLC": {
+    "compiler": "openplc-compiler",
+    "preview": "gespantplc.png"
+  },
   "Arduino Due (native USB port)": {
     "compiler": "arduino-cli",
     "core": "arduino:sam",

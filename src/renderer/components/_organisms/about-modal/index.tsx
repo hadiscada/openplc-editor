@@ -19,11 +19,11 @@ const AboutModal = () => {
   const closeModal = () => {
     setModalOpen('aboutOpenPlc', false)
   }
-  const title = 'OpenPLC Editor 4.1.1'
+  const title = 'Gespant Logic 1.0.1'
   const releaseDate = 'Release: 2026-01-09'
-  const description = 'Open Source IDE for the OpenPLC Runtime, compliant with the IEC 61131-3 international standard.'
-  const copyright = '© 2025 Autonomy Logic'
-  const linkUrl = 'https://autonomylogic.com'
+  const description = 'IDE for the Gespant PLC, compliant with the IEC 61131-3 international standard.'
+  const copyright = '© 2026 Gespant Technology'
+  const linkUrl = 'https://winenerji.com'
 
   const handleOpenAboutLink = () => {
     void window.bridge.openExternalLinkAccelerator(linkUrl)
@@ -47,7 +47,7 @@ const AboutModal = () => {
   return (
     <Modal onOpenChange={handleOpenChange} open={isAboutModalOpen}>
       <ModalContent className='h-[520px] w-[508px] select-none flex-col justify-between px-4 py-4'>
-        <div className='flex h-[180px] w-full items-center justify-center bg-[#0464fb]'>
+        <div className='flex h-[180px] w-full items-center justify-center bg-[#02973b]'>
           <img src={openPlcLogo} />
         </div>
 
@@ -68,7 +68,7 @@ const AboutModal = () => {
         </div>
 
         <div className='my-4 flex justify-center gap-3 text-sm font-medium dark:text-neutral-100'>
-          {['Credits', 'License', 'Sponsors', 'Close'].map((label, index) => (
+          {['Close'].map((label, index) => (
             <button key={index} className='h-8 w-20 rounded-md bg-neutral-100 dark:bg-neutral-850' onClick={closeModal}>
               {label}
             </button>

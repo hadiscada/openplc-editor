@@ -331,6 +331,22 @@ const rendererProcessBridge = {
     }
     error?: string
   }> => ipcRenderer.invoke('runtime:get-status', ipAddress, jwtToken, includeStats),
+  runtimeScanCanbus: (
+    ipAddress: string,
+    jwtToken: string,
+  ): Promise<{
+    success: boolean
+    status?: string
+    devices?: Array<{
+      node_id: number
+      hex_id: string
+      product_code: string
+      type: string
+      vendor_id: string
+    }>
+    count?: number
+    error?: string
+  }> => ipcRenderer.invoke('runtime:scan-canbus', ipAddress, jwtToken),
   runtimeStartPlc: (ipAddress: string, jwtToken: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('runtime:start-plc', ipAddress, jwtToken),
   runtimeStopPlc: (ipAddress: string, jwtToken: string): Promise<{ success: boolean; error?: string }> =>

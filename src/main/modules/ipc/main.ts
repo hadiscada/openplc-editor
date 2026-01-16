@@ -435,6 +435,51 @@ class MainProcessBridge implements MainIpcModule {
     }
   }
 
+  handleRuntimeScanCanbus = async (
+    _event: IpcMainInvokeEvent,
+    ipAddress: string,
+    jwtToken: string,
+  ) => {
+      try {
+          // Endpoint yang kita buat di Python CM5 sebelumnya
+          const endpoint = '/api/scan-canbus'
+
+          // Memanggil helper makeRuntimeApiRequest
+          // Kita definisikan interface return type agar TypeScript senang
+          const result = await this.makeRuntimeApiRequest<{
+              status: string
+              found_devices_count: number
+              devices: Array<{
+                  node_id: number
+                  hex_id: string
+                  product_code: string
+                  type: string
+                  vendor_id: string
+              }>
+          }>(ipAddress, jwtToken, endpoint, (data: string) => {
+              // Parsing string JSON dari response body
+              const response = JSON.parse(data)
+              return response
+          })
+
+          if (result.success && result.data) {
+              return {
+                  success: true,
+                  status: result.data.status,
+                  devices: result.data.devices,
+                  count: result.data.found_devices_count
+              }
+          } else {
+              return { 
+                  success: false, 
+                  error: !result.success ? result.error : 'Failed to parse CANbus data' 
+              }
+          }
+      } catch (error) {
+          return { success: false, error: String(error) }
+      }
+  }
+
   handleRuntimeGetCompilationStatus = async (_event: IpcMainInvokeEvent, ipAddress: string, jwtToken: string) => {
     try {
       const result = await this.makeRuntimeApiRequest<{ status: string; logs: string[]; exit_code: number | null }>(
@@ -557,6 +602,7 @@ class MainProcessBridge implements MainIpcModule {
     this.ipcMain.handle('runtime:get-compilation-status', this.handleRuntimeGetCompilationStatus)
     this.ipcMain.handle('runtime:get-logs', this.handleRuntimeGetLogs)
     this.ipcMain.handle('runtime:clear-credentials', this.handleRuntimeClearCredentials)
+    this.ipcMain.handle('runtime:scan-canbus', this.handleRuntimeScanCanbus)
   }
 
   // ===================== HANDLER METHODS =====================

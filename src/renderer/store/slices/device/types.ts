@@ -128,6 +128,10 @@ const setTCPConfigParams = z.discriminatedUnion('tcpConfig', [
   z.object({ tcpConfig: z.literal('tcpMacAddress'), value: z.string() }),
 ])
 
+const setCANConfigParams = z.discriminatedUnion('canConfig', [
+  z.object({ canConfig: z.literal('canRate'), value: z.enum(['1000000']) }),  
+])
+
 const deviceActionSchema = z.object({
   setAvailableOptions: z
     .function()
@@ -171,10 +175,11 @@ const deviceActionSchema = z.object({
   setCommunicationPort: z.function().args(z.string()).returns(z.void()),
   setCommunicationPreferences: z
     .function()
-    .args(z.object({ enableRTU: z.boolean(), enableTCP: z.boolean(), enableDHCP: z.boolean() }).partial())
+    .args(z.object({ enableRTU: z.boolean(), enableTCP: z.boolean(), enableDHCP: z.boolean(), enableCAN: z.boolean() }).partial())
     .returns(z.void()),
   setRTUConfig: z.function().args(setRTUConfigParams).returns(z.void()),
   setTCPConfig: z.function().args(setTCPConfigParams).returns(z.void()),
+  setCANConfig: z.function().args(setCANConfigParams).returns(z.void()),
   setWifiConfig: z
     .function()
     .args(z.object({ tcpWifiSSID: z.string(), tcpWifiPassword: z.string() }).partial())

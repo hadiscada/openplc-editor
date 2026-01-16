@@ -41,11 +41,15 @@ const deviceConfigurationSchema = z.object({
         tcpStaticHostConfiguration: staticHostConfigurationSchema, // When this is omitted the user has chosen DHCP.
       }),
     ]),
+    canBus: z.object({
+      canRate: z.string().nullable(),
+    }),
     communicationPreferences: z.object({
       enabledRTU: z.boolean(),
       enabledTCP: z.boolean(),
       enabledDHCP: z.boolean(),
-    }),
+      enabledCAN: z.boolean(),
+    }),    
   }),
 })
 

@@ -400,7 +400,7 @@ export const DefaultWorkspaceActivityBar = ({ zoom }: DefaultWorkspaceActivityBa
       const projectPath = project.meta.path
       const currentBoardInfo = availableBoards.get(boardTarget)
       const isRuntimeTarget = isOpenPLCRuntimeTarget(currentBoardInfo)
-      const isRuntimeV4 = boardTarget === 'OpenPLC Runtime v4'
+      const isRuntimeV4 = boardTarget === 'OpenPLC Runtime v4' || 'Gespant PLC'
 
       let targetIpAddress: string | undefined
       let connectionType: 'tcp' | 'rtu' | 'websocket' = 'tcp'

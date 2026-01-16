@@ -23,10 +23,14 @@ export const defaultDeviceConfiguration: DeviceConfiguration = {
         subnet: '',
       },
     },
+    canBus:{
+      canRate: '1000000',
+    },
     communicationPreferences: {
       enabledRTU: false,
       enabledTCP: false,
       enabledDHCP: true,
-    },
+      enabledCAN: false,
+    },    
   },
 }

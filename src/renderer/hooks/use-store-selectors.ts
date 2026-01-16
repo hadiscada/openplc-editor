@@ -18,6 +18,12 @@ const tcpSelectors = {
   useSetWifiConfig: () => useOpenPLCStore((state) => state.deviceActions.setWifiConfig),
 }
 
+const canSelectors = {
+  useCan: () =>
+    useOpenPLCStore((state) => state.deviceDefinitions.configuration.communicationConfiguration.communicationPreferences.enabledCAN ),
+  useSetCanConfig: () => useOpenPLCStore((state) => state.deviceActions.setCANConfig),
+}
+
 const staticHostSelectors = {
   useTcpStaticHostConfiguration: () =>
     useOpenPLCStore(
@@ -151,6 +157,7 @@ const ladderSelectors = {
 
 export {
   boardSelectors,
+  canSelectors,
   communicationSelectors,
   compileOnlySelectors,
   consoleSelectors,

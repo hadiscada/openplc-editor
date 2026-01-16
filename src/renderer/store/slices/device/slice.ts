@@ -336,7 +336,7 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
           deviceDefinitions.configuration.communicationPort = communicationPort
         }),
       )
-    },
+    },    
     setCommunicationPreferences: (preferences) => {
       setState(
         produce(({ deviceDefinitions: { configuration }, deviceUpdated }: DeviceSlice) => {
@@ -350,6 +350,9 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
           }
           if (preferences.enableDHCP !== undefined) {
             configuration.communicationConfiguration.communicationPreferences.enabledDHCP = preferences.enableDHCP
+          }
+          if (preferences.enableCAN !== undefined) {
+            configuration.communicationConfiguration.communicationPreferences.enabledCAN = preferences.enableCAN
           }
         }),
       )
@@ -392,6 +395,22 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
             case 'tcpMacAddress':
               deviceDefinitions.configuration.communicationConfiguration.modbusTCP.tcpMacAddress = value
               break
+            default:
+              break
+          }
+        }),
+      )
+    },
+    setCANConfig: (canConfigOption): void => {
+      setState(
+        produce(({ deviceDefinitions, deviceUpdated }: DeviceSlice) => {
+          deviceUpdated.updated = true // Mark device as updated when setting TCP configuration
+
+          const { canConfig, value } = canConfigOption
+          switch (canConfig) {
+            case 'canRate':              
+              deviceDefinitions.configuration.communicationConfiguration.canBus.canRate = value
+              break            
             default:
               break
           }
@@ -504,6 +523,9 @@ function mergeDeviceConfigWithDefaults(
       modbusTCP: provided.communicationConfiguration?.modbusTCP?.tcpInterface
         ? provided.communicationConfiguration.modbusTCP
         : defaults.communicationConfiguration.modbusTCP,
+      canBus: provided.communicationConfiguration?.canBus?.canRate
+        ? provided.communicationConfiguration.canBus
+        : defaults.communicationConfiguration.canBus,
       communicationPreferences: {
         ...defaults.communicationConfiguration.communicationPreferences,
         ...(provided.communicationConfiguration?.communicationPreferences || {}),

@@ -50,7 +50,12 @@ type IOGroupModalProps = {
   editingGroup?: ModbusIOGroup | null
 }
 
-const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalProps) => {
+const MODULE_TYPE_OPTIONS = [
+  { value: '2', label: 'Digital Input' },   
+  { value: '15', label: 'Digital Output' }, 
+]
+
+const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup}: IOGroupModalProps) => {    
   const [name, setName] = useState('')
   const [functionCode, setFunctionCode] = useState<'1' | '2' | '3' | '4' | '5' | '6' | '15' | '16'>('3')
   const [cycleTime, setCycleTime] = useState('100')
@@ -60,6 +65,12 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
 
   // FC 5 (Write Single Coil) and FC 6 (Write Single Register) are single-element operations
   const isSingleElementOperation = functionCode === '5' || functionCode === '6'
+
+
+  const { editor } = useOpenPLCStore()
+  const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
+  const isCanbus = protocol === 'canbus'
+  
 
   useEffect(() => {
     if (editingGroup) {
@@ -127,7 +138,7 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
             />
           </div>
           <div className='flex items-center gap-2'>
-            <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Function Code</Label>
+            <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>{isCanbus ? 'Module Type' : 'Function Code'}</Label>
             <Select value={functionCode} onValueChange={(v) => setFunctionCode(v as typeof functionCode)}>
               <SelectTrigger
                 withIndicator
@@ -135,33 +146,30 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
                 className='flex h-[30px] w-full items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
               />
               <SelectContent className='h-fit max-h-[200px] w-[--radix-select-trigger-width] overflow-y-auto rounded-lg border border-neutral-300 bg-white outline-none drop-shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'>
-                {FUNCTION_CODE_OPTIONS.map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}
-                    className={cn(
+                {(isCanbus ? MODULE_TYPE_OPTIONS : FUNCTION_CODE_OPTIONS).map((option) => ( 
+                // {(FUNCTION_CODE_OPTIONS).map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <span className={cn(
                       'data-[state=checked]:[&:not(:hover)]:bg-neutral-100 data-[state=checked]:dark:[&:not(:hover)]:bg-neutral-900',
                       'flex w-full cursor-pointer items-center justify-start px-2 py-1 outline-none hover:bg-neutral-100 dark:hover:bg-neutral-800',
-                    )}
-                  >
-                    <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
-                      {option.label}
-                    </span>
+                    )}>{option.label}</span>
                   </SelectItem>
-                ))}
+                ))}                
               </SelectContent>
             </Select>
           </div>
-          <div className='flex items-center gap-2'>
-            <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Cycle Time (ms)</Label>
-            <InputWithRef
-              type='number'
-              value={cycleTime}
-              onChange={(e) => setCycleTime(e.target.value)}
-              placeholder='100'
-              className={inputStyles}
-            />
-          </div>
+          {!isCanbus && ( 
+            <div className='flex items-center gap-2'>
+              <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Cycle Time (ms)</Label>
+              <InputWithRef
+                type='number'
+                value={cycleTime}
+                onChange={(e) => setCycleTime(e.target.value)}
+                placeholder='100'
+                className={inputStyles}
+              />
+            </div>
+          )}
           <div className='flex items-center gap-2'>
             <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Offset</Label>
             <InputWithRef
@@ -256,6 +264,10 @@ const IOGroupRow = ({
   const groupAddress = firstIOPoint?.iecLocation || '-'
   const groupOffset = ioGroup.offset
 
+  const { editor } = useOpenPLCStore()
+  const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
+  const isCanbus = protocol === 'canbus'
+
   return (
     <>
       <tr
@@ -284,9 +296,11 @@ const IOGroupRow = ({
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupType}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupAddress}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupOffset}</td>
-        <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>
-          {getFunctionCodeLabel(ioGroup.functionCode)}
-        </td>
+        { !isCanbus && (
+          <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>
+            {getFunctionCodeLabel(ioGroup.functionCode)}
+          </td>
+        )}
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>-</td>
       </tr>
       {isExpanded &&
@@ -311,6 +325,10 @@ type IOPointRowProps = {
 const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
   const [alias, setAlias] = useState(ioPoint.alias || '')
 
+  const { editor } = useOpenPLCStore()
+  const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
+  const isCanbus = protocol === 'canbus'
+
   const handleBlur = () => {
     if (alias !== ioPoint.alias) {
       onUpdateAlias(alias)
@@ -324,7 +342,9 @@ const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.type}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.iecLocation}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{offset}</td>
-      <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>-</td>
+      { !isCanbus && (
+        <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>-</td>
+      )}
       <td className='px-2 py-1'>
         <InputWithRef
           value={alias}
@@ -338,19 +358,97 @@ const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
   )
 }
 
+interface CANDevice {
+  node_id: number;
+  hex_id: string;
+  product_code: string; // 0x1 = GPA116 (DI), dsb
+  type: string;
+  vendor_id: string;
+}
+
+// Helper untuk deteksi IO berdasarkan Product Code atau Type String
+// const getDeviceIOSpecs = (device: CANDevice) => {
+//   if (device.product_code === '0x2' || device.type.includes('GPA216')) {
+//     return { type: 'Digital Input', length: 16, fc: '2' as const };
+//   }
+//   if (device.product_code === '0x1' || device.type.includes('GPA116')) {
+//     return { type: 'Digital Output', length: 16, fc: '15' as const };
+//   }
+//   return { type: 'Unknown', length: 0, fc: '3' as const };
+// };
+
+const DEVICE_MAPPING_DATABASE: Record<string, { name: string; type: 'DI' | 'DO'; points: number; fc: '2' | '15' }> = {
+  '0x1': { name: 'GPA216', type: 'DI', points: 16, fc: '2' },  // Read Discrete Inputs
+  '0x2': { name: 'GPA116', type: 'DO', points: 16, fc: '15' }, // Write Multiple Coils
+};
+
+
+
 const RemoteDeviceEditor = () => {
   const { editor, project, projectActions, workspaceActions } = useOpenPLCStore()
 
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanResults, setScanResults] = useState<CANDevice[] | null>(null)
+
   const deviceName = editor.type === 'plc-remote-device' ? editor.meta.name : ''
   const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
+  const isCanbus = protocol === 'canbus'
 
   const remoteDevice = useMemo(() => {
     return project.data.remoteDevices?.find((d) => d.name === deviceName)
   }, [project.data.remoteDevices, deviceName])
 
+  // --- Logic Modbus (Existing) ---
   const [host, setHost] = useState('')
   const [port, setPort] = useState('')
   const [timeoutMs, setTimeoutMs] = useState('')
+
+  const jwtToken = useOpenPLCStore((state) => state.runtimeConnection.jwtToken)
+  const ipAddress = useOpenPLCStore((state) => state.deviceDefinitions.configuration.runtimeIpAddress)
+    
+
+  // --- Logic CANbus Scan ---
+  const handleScanCAN = async () => {
+    if (!ipAddress || !jwtToken) {
+      console.error("Connection credentials missing");
+      return;
+    }
+    setIsScanning(true)
+    try {
+      const result = await window.bridge.runtimeScanCanbus(
+        ipAddress, 
+        jwtToken
+      )
+      if (result.success && result.devices) {
+        // Masukkan hanya jika devices tidak undefined
+        setScanResults(result.devices as CANDevice[]);
+      } else {
+        // Jika gagal atau tidak ada device, set ke array kosong agar tidak undefined
+        setScanResults([]);
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsScanning(false)
+    }
+  }
+
+  const handleAutoMap = (device: CANDevice) => {
+    const specs = DEVICE_MAPPING_DATABASE[device.product_code]
+    if (!specs) return
+    
+    projectActions.addIOGroup(deviceName, {
+      id: uuidv4(),
+      name: `${specs.name}_Node${device.node_id}`,
+      functionCode: specs.fc,
+      cycleTime: 0,
+      offset: "0",
+      length: specs.points,
+      errorHandling: 'set-to-zero',
+    })
+    workspaceActions.setEditingState('unsaved')
+  }
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -464,10 +562,30 @@ const RemoteDeviceEditor = () => {
     [deviceName, projectActions, workspaceActions],
   )
 
+  // const getVendorName = (vendorId: string): string => {
+  //   if (vendorId === "0x5f4") return "Winenerji";
+  //   return vendorId; // Kembalikan ID asli jika tidak cocok
+  // };
+
+  // const getProductName = (productCode: string): string => {
+  //   // Menangani string "0x1" atau angka 1
+  //   if (productCode === "0x1" || productCode === "1") return "GPA116";
+  //   if (productCode === "0x2" || productCode === "2") return "GPA216";
+  //   return productCode;
+  // };
+
+  // const getProductType = (productCode: string): string => {
+  //   // Menangani string "0x1" atau angka 1
+  //   if (productCode === "0x1" || productCode === "1") return "Digital Output 16 Channel";
+  //   if (productCode === "0x2" || productCode === "2") return "Digital Input 16 Channel";
+  //   return productCode;
+  // };
+
   const inputStyles =
     'h-[30px] w-full max-w-[200px] rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
 
-  if (protocol !== 'modbus-tcp') {
+
+  if (protocol !== 'modbus-tcp' && !isCanbus) {
     return (
       <div aria-label='Remote device content container' className='flex h-full w-full flex-col overflow-hidden p-4'>
         <div className='mb-4'>
@@ -483,47 +601,83 @@ const RemoteDeviceEditor = () => {
     )
   }
 
+
   return (
     <div aria-label='Remote device content container' className='flex h-full w-full flex-col overflow-hidden p-4'>
-      <div className='mb-4'>
-        <h2 className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>Remote Device: {deviceName}</h2>
-        <p className='text-sm text-neutral-600 dark:text-neutral-400'>Protocol: Modbus/TCP</p>
+      <div className='mb-4 flex justify-between items-center'>
+        <div>
+          <h2 className='text-lg font-semibold'>Remote Device: {deviceName}</h2>
+          <p className='text-sm text-neutral-500'>Protocol: {isCanbus ? 'CANbus' : 'Modbus/TCP'}</p>
+        </div>
+        {isCanbus && (
+          <button onClick={() => void handleScanCAN()} disabled={isScanning} className='h-8 px-4 bg-brand text-white rounded-md text-sm font-medium disabled:opacity-50'>
+            {isScanning ? 'Scanning...' : 'Scan CAN Network'}
+          </button>
+        )}
       </div>
 
-      <div className='mb-6 flex flex-wrap gap-6'>
-        <div className='flex items-center gap-2'>
-          <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>IP Address</Label>
-          <InputWithRef
-            value={host}
-            onChange={(e) => setHost(e.target.value)}
-            onBlur={handleHostBlur}
-            placeholder='127.0.0.1'
-            className={inputStyles}
-          />
+      {!isCanbus && (
+        <div className='mb-6 flex flex-wrap gap-6'>
+          <div className='flex items-center gap-2'>
+            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>IP Address</Label>
+            <InputWithRef
+              value={host}
+              onChange={(e) => setHost(e.target.value)}
+              onBlur={handleHostBlur}
+              placeholder='127.0.0.1'
+              className={inputStyles}
+            />
+          </div>
+          <div className='flex items-center gap-2'>
+            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Port</Label>
+            <InputWithRef
+              type='number'
+              value={port}
+              onChange={(e) => setPort(e.target.value)}
+              onBlur={handlePortBlur}
+              placeholder='502'
+              className={inputStyles}
+            />
+          </div>
+          <div className='flex items-center gap-2'>
+            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Response Timeout (ms)</Label>
+            <InputWithRef
+              type='number'
+              value={timeoutMs}
+              onChange={(e) => setTimeoutMs(e.target.value)}
+              onBlur={handleTimeoutBlur}
+              placeholder='1000'
+              className={inputStyles}
+            />
+          </div>
         </div>
-        <div className='flex items-center gap-2'>
-          <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Port</Label>
-          <InputWithRef
-            type='number'
-            value={port}
-            onChange={(e) => setPort(e.target.value)}
-            onBlur={handlePortBlur}
-            placeholder='502'
-            className={inputStyles}
-          />
+      )} 
+
+      {/* --- CAN Scan Results Table --- */}
+      {isCanbus && scanResults && (
+        <div className='mb-6 border rounded-lg overflow-hidden bg-white dark:bg-neutral-900'>
+          <table className='w-full text-left text-xs'>
+            <thead className='bg-neutral-100 dark:bg-neutral-800 font-bold'>
+              <tr><th className='p-2'>Node</th><th className='p-2'>Model</th><th className='p-2'>IO Specs</th><th className='p-2 text-right'>Action</th></tr>
+            </thead>
+            <tbody className='divide-y'>
+              {scanResults.map(dev => {
+                const specs = DEVICE_MAPPING_DATABASE[dev.product_code];
+                return (
+                  <tr key={dev.node_id}>
+                    <td className='p-2'>{dev.node_id} ({dev.hex_id})</td>
+                    <td className='p-2'>{specs?.name || dev.type}</td>
+                    <td className='p-2'>{specs ? `${specs.points} pts ${specs.type}` : '-'}</td>
+                    <td className='p-2 text-right'>
+                      <button onClick={() => handleAutoMap(dev)} disabled={!specs} className='text-brand font-bold hover:underline disabled:text-neutral-300'>Add to IO</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
-        <div className='flex items-center gap-2'>
-          <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Response Timeout (ms)</Label>
-          <InputWithRef
-            type='number'
-            value={timeoutMs}
-            onChange={(e) => setTimeoutMs(e.target.value)}
-            onBlur={handleTimeoutBlur}
-            placeholder='1000'
-            className={inputStyles}
-          />
-        </div>
-      </div>
+      )}
 
       <div className='flex flex-1 flex-col overflow-hidden'>
         <div className='mb-2 flex items-center justify-between'>
@@ -568,9 +722,11 @@ const RemoteDeviceEditor = () => {
                 <th className='w-[8%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
                   Offset
                 </th>
-                <th className='w-[22%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
-                  Function Code
-                </th>
+                {!isCanbus && (
+                  <th className='w-[22%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
+                    Function Code
+                  </th>
+                )}
                 <th className='px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
                   Alias
                 </th>
