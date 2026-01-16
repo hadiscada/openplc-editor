@@ -12,6 +12,11 @@ import {
   PLCStructureVariableSchema,
   PLCTaskSchema,
   PLCVariableSchema,
+  S7CommDataBlockSchema,
+  S7CommLoggingSchema,
+  S7CommPlcIdentitySchema,
+  S7CommServerSettingsSchema,
+  S7CommSystemAreaSchema,
 } from '@root/types/PLC/open-plc'
 import { z } from 'zod'
 
@@ -325,9 +330,60 @@ const _projectActionsSchema = z.object({
         enabled: z.boolean().optional(),
         networkInterface: z.string().optional(),
         port: z.number().optional(),
+        bufferMapping: z
+          .object({
+            holdingRegisters: z
+              .object({
+                qwCount: z.number().optional(),
+                mwCount: z.number().optional(),
+                mdCount: z.number().optional(),
+                mlCount: z.number().optional(),
+              })
+              .optional(),
+            coils: z
+              .object({
+                qxBits: z.number().optional(),
+                mxBits: z.number().optional(),
+              })
+              .optional(),
+            discreteInputs: z
+              .object({
+                ixBits: z.number().optional(),
+              })
+              .optional(),
+            inputRegisters: z
+              .object({
+                iwCount: z.number().optional(),
+              })
+              .optional(),
+          })
+          .optional(),
       }),
     )
     .returns(projectResponseSchema),
+
+  /**
+   * S7Comm Server Actions
+   */
+  updateS7CommServerSettings: z
+    .function()
+    .args(z.string(), S7CommServerSettingsSchema.partial())
+    .returns(projectResponseSchema),
+  updateS7CommPlcIdentity: z
+    .function()
+    .args(z.string(), S7CommPlcIdentitySchema.partial())
+    .returns(projectResponseSchema),
+  addS7CommDataBlock: z.function().args(z.string(), S7CommDataBlockSchema).returns(projectResponseSchema),
+  updateS7CommDataBlock: z
+    .function()
+    .args(z.string(), z.number(), S7CommDataBlockSchema.partial())
+    .returns(projectResponseSchema),
+  removeS7CommDataBlock: z.function().args(z.string(), z.number()).returns(projectResponseSchema),
+  updateS7CommSystemArea: z
+    .function()
+    .args(z.string(), z.enum(['peArea', 'paArea', 'mkArea']), S7CommSystemAreaSchema.partial())
+    .returns(projectResponseSchema),
+  updateS7CommLogging: z.function().args(z.string(), S7CommLoggingSchema.partial()).returns(projectResponseSchema),
 
   /**
    * Remote Device Actions

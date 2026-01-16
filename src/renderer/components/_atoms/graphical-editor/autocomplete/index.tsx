@@ -123,9 +123,20 @@ export const GraphicalEditorAutocomplete = forwardRef<HTMLDivElement, GraphicalE
           break
         case 'Tab':
         case 'Enter':
-          submitAutocompletion({
-            variable: selectedVariable.variable,
-          })
+          // If nothing is selected (positionInArray === -1), find the "Add variable" option
+          if (selectedVariable.positionInArray === -1) {
+            const addVariableOption = selectableValues.find((item) => item.type === 'add')
+            if (addVariableOption) {
+              submitAutocompletion({ variable: addVariableOption.variable })
+            } else {
+              // No 'add' option available; close the autocomplete to provide clear feedback
+              closeModal()
+            }
+          } else {
+            submitAutocompletion({
+              variable: selectedVariable.variable,
+            })
+          }
           break
         default:
           break
