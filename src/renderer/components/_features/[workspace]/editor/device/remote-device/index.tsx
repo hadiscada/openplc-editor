@@ -51,11 +51,11 @@ type IOGroupModalProps = {
 }
 
 const MODULE_TYPE_OPTIONS = [
-  { value: '2', label: 'Digital Input' },   
-  { value: '15', label: 'Digital Output' }, 
+  { value: '2', label: 'Digital Input' },
+  { value: '15', label: 'Digital Output' },
 ]
 
-const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup}: IOGroupModalProps) => {    
+const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalProps) => {
   const [name, setName] = useState('')
   const [functionCode, setFunctionCode] = useState<'1' | '2' | '3' | '4' | '5' | '6' | '15' | '16'>('3')
   const [cycleTime, setCycleTime] = useState('100')
@@ -70,7 +70,7 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup}: IOGroupModalPr
   const { editor } = useOpenPLCStore()
   const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
   const isCanbus = protocol === 'canbus'
-  
+
 
   useEffect(() => {
     if (editingGroup) {
@@ -146,19 +146,19 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup}: IOGroupModalPr
                 className='flex h-[30px] w-full items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
               />
               <SelectContent className='h-fit max-h-[200px] w-[--radix-select-trigger-width] overflow-y-auto rounded-lg border border-neutral-300 bg-white outline-none drop-shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'>
-                {(isCanbus ? MODULE_TYPE_OPTIONS : FUNCTION_CODE_OPTIONS).map((option) => ( 
-                // {(FUNCTION_CODE_OPTIONS).map((option) => (
+                {(isCanbus ? MODULE_TYPE_OPTIONS : FUNCTION_CODE_OPTIONS).map((option) => (
+                  // {(FUNCTION_CODE_OPTIONS).map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     <span className={cn(
                       'data-[state=checked]:[&:not(:hover)]:bg-neutral-100 data-[state=checked]:dark:[&:not(:hover)]:bg-neutral-900',
                       'flex w-full cursor-pointer items-center justify-start px-2 py-1 outline-none hover:bg-neutral-100 dark:hover:bg-neutral-800',
                     )}>{option.label}</span>
                   </SelectItem>
-                ))}                
+                ))}
               </SelectContent>
             </Select>
           </div>
-          {!isCanbus && ( 
+          {!isCanbus && (
             <div className='flex items-center gap-2'>
               <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Cycle Time (ms)</Label>
               <InputWithRef
@@ -296,7 +296,7 @@ const IOGroupRow = ({
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupType}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupAddress}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupOffset}</td>
-        { !isCanbus && (
+        {!isCanbus && (
           <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>
             {getFunctionCodeLabel(ioGroup.functionCode)}
           </td>
@@ -342,7 +342,7 @@ const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.type}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.iecLocation}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{offset}</td>
-      { !isCanbus && (
+      {!isCanbus && (
         <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>-</td>
       )}
       <td className='px-2 py-1'>
@@ -402,10 +402,11 @@ const RemoteDeviceEditor = () => {
   const [host, setHost] = useState('')
   const [port, setPort] = useState('')
   const [timeoutMs, setTimeoutMs] = useState('')
+  const [slaveId, setSlaveId] = useState('')
 
   const jwtToken = useOpenPLCStore((state) => state.runtimeConnection.jwtToken)
   const ipAddress = useOpenPLCStore((state) => state.deviceDefinitions.configuration.runtimeIpAddress)
-    
+
 
   // --- Logic CANbus Scan ---
   const handleScanCAN = async () => {
@@ -416,7 +417,7 @@ const RemoteDeviceEditor = () => {
     setIsScanning(true)
     try {
       const result = await window.bridge.runtimeScanCanbus(
-        ipAddress, 
+        ipAddress,
         jwtToken
       )
       if (result.success && result.devices) {
@@ -436,7 +437,7 @@ const RemoteDeviceEditor = () => {
   const handleAutoMap = (device: CANDevice) => {
     const specs = DEVICE_MAPPING_DATABASE[device.product_code]
     if (!specs) return
-    
+
     projectActions.addIOGroup(deviceName, {
       id: uuidv4(),
       name: `${specs.name}_Node${device.node_id}`,
@@ -459,10 +460,12 @@ const RemoteDeviceEditor = () => {
       setHost(remoteDevice.modbusTcpConfig.host)
       setPort(remoteDevice.modbusTcpConfig.port.toString())
       setTimeoutMs(remoteDevice.modbusTcpConfig.timeout.toString())
+      setSlaveId((remoteDevice.modbusTcpConfig.slaveId ?? 1).toString())
     } else {
       setHost('127.0.0.1')
       setPort('502')
       setTimeoutMs('1000')
+      setSlaveId('1')
     }
   }, [remoteDevice])
 
@@ -490,6 +493,19 @@ const RemoteDeviceEditor = () => {
       workspaceActions.setEditingState('unsaved')
     }
   }, [timeoutMs, deviceName, remoteDevice?.modbusTcpConfig?.timeout, projectActions, workspaceActions])
+
+  const handleSlaveIdBlur = useCallback(() => {
+    const slaveIdNum = parseInt(slaveId, 10)
+    if (
+      !isNaN(slaveIdNum) &&
+      slaveIdNum >= 0 &&
+      slaveIdNum <= 255 &&
+      slaveIdNum !== remoteDevice?.modbusTcpConfig?.slaveId
+    ) {
+      projectActions.updateRemoteDeviceConfig(deviceName, { slaveId: slaveIdNum })
+      workspaceActions.setEditingState('unsaved')
+    }
+  }, [slaveId, deviceName, remoteDevice?.modbusTcpConfig?.slaveId, projectActions, workspaceActions])
 
   const handleToggleExpand = useCallback((groupId: string) => {
     setExpandedGroups((prev) => {
@@ -650,8 +666,21 @@ const RemoteDeviceEditor = () => {
               className={inputStyles}
             />
           </div>
+          <div className='flex items-center gap-2'>
+            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Slave ID</Label>
+            <InputWithRef
+              type='number'
+              value={slaveId}
+              onChange={(e) => setSlaveId(e.target.value)}
+              onBlur={handleSlaveIdBlur}
+              placeholder='1'
+              min={0}
+              max={255}
+              className={inputStyles}
+            />
+          </div>
         </div>
-      )} 
+      )}
 
       {/* --- CAN Scan Results Table --- */}
       {isCanbus && scanResults && (
