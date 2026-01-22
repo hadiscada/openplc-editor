@@ -45,6 +45,8 @@ type IOGroupModalProps = {
     cycleTime: number
     offset: string
     length: number
+
+    nodeId?: number
     errorHandling: 'keep-last-value' | 'set-to-zero'
   }) => void
   editingGroup?: ModbusIOGroup | null
@@ -53,6 +55,8 @@ type IOGroupModalProps = {
 const MODULE_TYPE_OPTIONS = [
   { value: '2', label: 'Digital Input' },
   { value: '15', label: 'Digital Output' },
+  { value: '4', label: 'Analog Input' },
+  { value: '16', label: 'Analog Output' },
 ]
 
 const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalProps) => {
@@ -61,6 +65,8 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
   const [cycleTime, setCycleTime] = useState('100')
   const [offset, setOffset] = useState('0')
   const [length, setLength] = useState('1')
+
+  const [nodeId, setNodeId] = useState('1')
   const [errorHandling, setErrorHandling] = useState<'keep-last-value' | 'set-to-zero'>('keep-last-value')
 
   // FC 5 (Write Single Coil) and FC 6 (Write Single Register) are single-element operations
@@ -72,6 +78,7 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
   const isCanbus = protocol === 'canbus'
 
 
+
   useEffect(() => {
     if (editingGroup) {
       setName(editingGroup.name)
@@ -81,6 +88,8 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
       // For single-element operations, length is always 1
       const isSingleElement = editingGroup.functionCode === '5' || editingGroup.functionCode === '6'
       setLength(isSingleElement ? '1' : editingGroup.length.toString())
+
+      setNodeId(editingGroup.nodeId?.toString() || '1')
       setErrorHandling(editingGroup.errorHandling)
     } else {
       setName('')
@@ -88,6 +97,7 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
       setCycleTime('100')
       setOffset('0')
       setLength('1')
+
       setErrorHandling('keep-last-value')
     }
   }, [editingGroup, isOpen])
@@ -107,6 +117,8 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
       cycleTime: parseInt(cycleTime, 10) || 100,
       offset,
       length: parseInt(length, 10) || 1,
+
+      nodeId: isCanbus ? (parseInt(nodeId, 10) || 1) : undefined,
       errorHandling,
     })
     setName('')
@@ -114,6 +126,7 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
     setCycleTime('100')
     setOffset('0')
     setLength('1')
+
     setErrorHandling('keep-last-value')
     onClose()
   }
@@ -147,7 +160,6 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
               />
               <SelectContent className='h-fit max-h-[200px] w-[--radix-select-trigger-width] overflow-y-auto rounded-lg border border-neutral-300 bg-white outline-none drop-shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'>
                 {(isCanbus ? MODULE_TYPE_OPTIONS : FUNCTION_CODE_OPTIONS).map((option) => (
-                  // {(FUNCTION_CODE_OPTIONS).map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     <span className={cn(
                       'data-[state=checked]:[&:not(:hover)]:bg-neutral-100 data-[state=checked]:dark:[&:not(:hover)]:bg-neutral-900',
@@ -158,6 +170,19 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
               </SelectContent>
             </Select>
           </div>
+          {isCanbus && (
+            <div className='flex items-center gap-2'>
+              <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Node ID</Label>
+              <InputWithRef
+                type='number'
+                value={nodeId}
+                onChange={(e) => setNodeId(e.target.value)}
+                placeholder='1'
+                min='1'
+                className={inputStyles}
+              />
+            </div>
+          )}
           {!isCanbus && (
             <div className='flex items-center gap-2'>
               <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Cycle Time (ms)</Label>
@@ -262,7 +287,9 @@ const IOGroupRow = ({
   const firstIOPoint = ioGroup.ioPoints[0]
   const groupType = firstIOPoint?.type || '-'
   const groupAddress = firstIOPoint?.iecLocation || '-'
+
   const groupOffset = ioGroup.offset
+  const groupNodeId = ioGroup.nodeId || '-'
 
   const { editor } = useOpenPLCStore()
   const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
@@ -296,6 +323,9 @@ const IOGroupRow = ({
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupType}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupAddress}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupOffset}</td>
+        {isCanbus && (
+          <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupNodeId}</td>
+        )}
         {!isCanbus && (
           <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>
             {getFunctionCodeLabel(ioGroup.functionCode)}
@@ -342,6 +372,7 @@ const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.type}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.iecLocation}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{offset}</td>
+      <td className='px-2 py-2 text-xs text-neutral-600 dark:text-neutral-400'>{offset}</td>
       {!isCanbus && (
         <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>-</td>
       )}
@@ -366,20 +397,9 @@ interface CANDevice {
   vendor_id: string;
 }
 
-// Helper untuk deteksi IO berdasarkan Product Code atau Type String
-// const getDeviceIOSpecs = (device: CANDevice) => {
-//   if (device.product_code === '0x2' || device.type.includes('GPA216')) {
-//     return { type: 'Digital Input', length: 16, fc: '2' as const };
-//   }
-//   if (device.product_code === '0x1' || device.type.includes('GPA116')) {
-//     return { type: 'Digital Output', length: 16, fc: '15' as const };
-//   }
-//   return { type: 'Unknown', length: 0, fc: '3' as const };
-// };
-
 const DEVICE_MAPPING_DATABASE: Record<string, { name: string; type: 'DI' | 'DO'; points: number; fc: '2' | '15' }> = {
-  '0x1': { name: 'GPA216', type: 'DI', points: 16, fc: '2' },  // Read Discrete Inputs
-  '0x2': { name: 'GPA116', type: 'DO', points: 16, fc: '15' }, // Write Multiple Coils
+  '0x2': { name: 'GPA216', type: 'DI', points: 16, fc: '2' },  // Read Discrete Inputs
+  '0x1': { name: 'GPA116', type: 'DO', points: 16, fc: '15' }, // Write Multiple Coils
 };
 
 
@@ -445,6 +465,8 @@ const RemoteDeviceEditor = () => {
       cycleTime: 0,
       offset: "0",
       length: specs.points,
+
+      nodeId: device.node_id,
       errorHandling: 'set-to-zero',
     })
     workspaceActions.setEditingState('unsaved')
@@ -547,6 +569,8 @@ const RemoteDeviceEditor = () => {
       cycleTime: number
       offset: string
       length: number
+
+      nodeId?: number
       errorHandling: 'keep-last-value' | 'set-to-zero'
     }) => {
       if (editingGroup) {
@@ -577,25 +601,6 @@ const RemoteDeviceEditor = () => {
     },
     [deviceName, projectActions, workspaceActions],
   )
-
-  // const getVendorName = (vendorId: string): string => {
-  //   if (vendorId === "0x5f4") return "Winenerji";
-  //   return vendorId; // Kembalikan ID asli jika tidak cocok
-  // };
-
-  // const getProductName = (productCode: string): string => {
-  //   // Menangani string "0x1" atau angka 1
-  //   if (productCode === "0x1" || productCode === "1") return "GPA116";
-  //   if (productCode === "0x2" || productCode === "2") return "GPA216";
-  //   return productCode;
-  // };
-
-  // const getProductType = (productCode: string): string => {
-  //   // Menangani string "0x1" atau angka 1
-  //   if (productCode === "0x1" || productCode === "1") return "Digital Output 16 Channel";
-  //   if (productCode === "0x2" || productCode === "2") return "Digital Input 16 Channel";
-  //   return productCode;
-  // };
 
   const inputStyles =
     'h-[30px] w-full max-w-[200px] rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
@@ -751,6 +756,11 @@ const RemoteDeviceEditor = () => {
                 <th className='w-[8%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
                   Offset
                 </th>
+                {isCanbus && (
+                  <th className='w-[10%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
+                    Node ID
+                  </th>
+                )}
                 {!isCanbus && (
                   <th className='w-[22%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
                     Function Code

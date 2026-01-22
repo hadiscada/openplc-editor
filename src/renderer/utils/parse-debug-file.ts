@@ -132,7 +132,7 @@ export function matchVariableWithDebugEntry(
 
   // For external variables, match against the global variable (CONFIG0__VARNAME)
   // This ensures forcing an external variable affects the actual global variable
-  if (variableClass === 'external') {
+  if (variableClass === 'external' || variableClass === 'global') {
     const globalPath = `CONFIG0__${variableNameUpper}`
     const match = debugVariables.find((dv) => dv.name === globalPath)
     return match ? match.index : null

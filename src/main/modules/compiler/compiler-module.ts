@@ -9,7 +9,6 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { CreateXMLFile } from '@root/main/utils'
-import { Project } from '@root/renderer/components/_organisms/explorer/project'
 import { ProjectState } from '@root/renderer/store/slices'
 import type { DeviceConfiguration, DevicePin } from '@root/types/PLC/devices'
 import { XmlGenerator } from '@root/utils'
@@ -1128,13 +1127,9 @@ class CompilerModule {
         if (entry.isDirectory()) {
           await addFilesToZip(fullPath, zipFolder, zipPath)
         } else {
-          // 1. Baca file sebagai Buffer
-          const fileBuffer = await fs.readFile(fullPath);
-          
-          // 2. Konversi ke Uint8Array agar TypeScript dan JSZip senang
-          const uint8Array = new Uint8Array(fileBuffer);
-          
-          // 3. Masukkan ke zip (ini akan menghilangkan error merah)
+          const fileContent = await fs.readFile(fullPath)
+          //zipFolder.file(zipPath, fileContent)
+          const uint8Array = new Uint8Array(fileContent);
           zipFolder.file(zipPath, uint8Array);
         }
       }
@@ -1218,14 +1213,13 @@ class CompilerModule {
     }
   }
 
-  async handleGenerateCanbusConfig(    
+  async handleGenerateCanbusConfig(
     sourceTargetFolderPath: string,
-    enablecan: boolean,
     projectData: ProjectState['data'],
     handleOutputData: HandleOutputDataCallback,
-  ): Promise<void> {    
-    const canConfig = generateCanbusConfig(enablecan, projectData.remoteDevices)
-    
+  ): Promise<void> {
+    const canConfig = generateCanbusConfig(projectData.remoteDevices)
+
     if (canConfig) {
       const confFolderPath = join(sourceTargetFolderPath, 'conf')
       await mkdir(confFolderPath, { recursive: true })
@@ -1321,7 +1315,6 @@ class CompilerModule {
     const compilationPath = join(normalizedProjectPath, 'build', boardTarget) // Assuming the build folder is named 'build'
 
     const sourceTargetFolderPath = join(compilationPath, 'src') // Assuming the source folder is named 'src'
-   
 
     let buildMD5Hash: string | null = null
 
@@ -1339,7 +1332,7 @@ class CompilerModule {
     })
 
     // --- Check for unsupported features on non-v4 targets ---
-    const isRuntimeV4 = boardTarget === 'OpenPLC Runtime v4' || boardTarget === 'Gespant PLC'
+    const isRuntimeV4 = boardTarget === 'OpenPLC Runtime v4'
     const hasServers = projectData.servers && projectData.servers.length > 0
     const hasRemoteDevices = projectData.remoteDevices && projectData.remoteDevices.length > 0
 
@@ -1662,6 +1655,16 @@ class CompilerModule {
             _mainProcessPort.postMessage({ logLevel, message: data })
           })
 
+          // Generate S7Comm config for Runtime v4
+          await this.handleGenerateS7CommConfig(sourceTargetFolderPath, projectData, (data, logLevel) => {
+            _mainProcessPort.postMessage({ logLevel, message: data })
+          })
+
+          // Generate CANbus config for Runtime v4
+          await this.handleGenerateCanbusConfig(sourceTargetFolderPath, projectData, (data, logLevel) => {
+            _mainProcessPort.postMessage({ logLevel, message: data })
+          })
+
           _mainProcessPort.postMessage({
             logLevel: 'info',
             message: 'Compressing source files for OpenPLC Runtime v4...',
@@ -1678,37 +1681,13 @@ class CompilerModule {
 
         const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2)
 
-        // --- TAMBAHKAN LOGIKA INI SEBELUM MEMBUAT HEADER ---
-        let finalFileBuffer: Buffer;
-
-        if (Buffer.isBuffer(fileBuffer)) {
-            finalFileBuffer = fileBuffer;
-        } else if (typeof fileBuffer === 'string') {
-            try {
-                const parsed = JSON.parse(fileBuffer);
-                if (parsed && parsed.type === 'Buffer' && Array.isArray(parsed.data)) {
-                    // Jika terdeteksi format JSON Buffer, kembalikan ke biner asli
-                    finalFileBuffer = Buffer.from(parsed.data);
-                } else {
-                    finalFileBuffer = Buffer.from(fileBuffer, 'utf8');
-                }
-            } catch (e) {
-                finalFileBuffer = Buffer.from(fileBuffer, 'utf8');
-            }
-        } else {
-            finalFileBuffer = Buffer.from(JSON.stringify(fileBuffer), 'utf8');
-        }
-
         const header = Buffer.from(
           `--${boundary}\r\n` +
             `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
             `Content-Type: ${contentType}\r\n\r\n`,
         )
         const footer = Buffer.from(`\r\n--${boundary}--\r\n`)
-        
-        // --- SEKARANG GUNAKAN finalFileBuffer DALAM CONCAT ---
-        const body = Buffer.concat([header, finalFileBuffer, footer] as unknown as ReadonlyArray<Uint8Array>)
-
+        const body = Buffer.concat([header, fileBuffer, footer] as unknown as ReadonlyArray<Uint8Array>)
 
         await new Promise<void>((resolve, reject) => {
           const req = https.request(

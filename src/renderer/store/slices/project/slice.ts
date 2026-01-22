@@ -79,53 +79,52 @@ const initializeServerProtocolConfig = (serverData: PLCServer): PLCServer => {
 }
 
 const getFunctionCodeInfo = (
-  functionCode: '1' | '2' | '3' | '4' | '5' | '6' | '15' | '16', 
-  protocol: string 
-): { type: string; iecPrefix: string; isBit: boolean} => {
-  if (protocol === "canbus")
-  {
+  functionCode: '1' | '2' | '3' | '4' | '5' | '6' | '15' | '16',
+  protocol: string
+): { type: string; iecPrefix: string; isBit: boolean } => {
+  if (protocol === "canbus") {
     switch (functionCode) {
-        case '1':
-          return { type: 'Digital Input', iecPrefix: '%IX', isBit: true }
-        case '2':
-          return { type: 'Digital Input', iecPrefix: '%IX', isBit: true }
-        case '3':
-          return { type: 'Analog Input', iecPrefix: '%IW', isBit: false }
-        case '4':
-          return { type: 'Analog Input', iecPrefix: '%IW', isBit: false }
-        case '5':
-          return { type: 'Digital Output', iecPrefix: '%QX', isBit: true }
-        case '6':
-          return { type: 'Analog Output', iecPrefix: '%QW', isBit: false }
-        case '15':
-          return { type: 'Digital Output', iecPrefix: '%QX', isBit: true }
-        case '16':
-          return { type: 'Analog Output', iecPrefix: '%QW', isBit: false }
-        default:
-          return { type: 'Unknown', iecPrefix: '%MW', isBit: false }
-      }    
+      case '1':
+        return { type: 'Digital Input', iecPrefix: '%IX', isBit: true }
+      case '2':
+        return { type: 'Digital Input', iecPrefix: '%IX', isBit: true }
+      case '3':
+        return { type: 'Analog Input', iecPrefix: '%IW', isBit: false }
+      case '4':
+        return { type: 'Analog Input', iecPrefix: '%IW', isBit: false }
+      case '5':
+        return { type: 'Digital Output', iecPrefix: '%QX', isBit: true }
+      case '6':
+        return { type: 'Analog Output', iecPrefix: '%QW', isBit: false }
+      case '15':
+        return { type: 'Digital Output', iecPrefix: '%QX', isBit: true }
+      case '16':
+        return { type: 'Analog Output', iecPrefix: '%QW', isBit: false }
+      default:
+        return { type: 'Unknown', iecPrefix: '%MW', isBit: false }
+    }
   } else {
     switch (functionCode) {
-        case '1':
-          return { type: 'Digital Input (Coil Status)', iecPrefix: '%IX', isBit: true }
-        case '2':
-          return { type: 'Digital Input (Discrete Input)', iecPrefix: '%IX', isBit: true }
-        case '3':
-          return { type: 'Analog Input (Holding Register)', iecPrefix: '%IW', isBit: false }
-        case '4':
-          return { type: 'Analog Input (Input Register)', iecPrefix: '%IW', isBit: false }
-        case '5':
-          return { type: 'Digital Output (Single Coil)', iecPrefix: '%QX', isBit: true }
-        case '6':
-          return { type: 'Analog Output (Single Register)', iecPrefix: '%QW', isBit: false }
-        case '15':
-          return { type: 'Digital Output (Multiple Coils)', iecPrefix: '%QX', isBit: true }
-        case '16':
-          return { type: 'Analog Output (Multiple Registers)', iecPrefix: '%QW', isBit: false }
-        default:
-          return { type: 'Unknown', iecPrefix: '%MW', isBit: false }
-      }    
-  }  
+      case '1':
+        return { type: 'Digital Input (Coil Status)', iecPrefix: '%IX', isBit: true }
+      case '2':
+        return { type: 'Digital Input (Discrete Input)', iecPrefix: '%IX', isBit: true }
+      case '3':
+        return { type: 'Analog Input (Holding Register)', iecPrefix: '%IW', isBit: false }
+      case '4':
+        return { type: 'Analog Input (Input Register)', iecPrefix: '%IW', isBit: false }
+      case '5':
+        return { type: 'Digital Output (Single Coil)', iecPrefix: '%QX', isBit: true }
+      case '6':
+        return { type: 'Analog Output (Single Register)', iecPrefix: '%QW', isBit: false }
+      case '15':
+        return { type: 'Digital Output (Multiple Coils)', iecPrefix: '%QX', isBit: true }
+      case '16':
+        return { type: 'Analog Output (Multiple Registers)', iecPrefix: '%QW', isBit: false }
+      default:
+        return { type: 'Unknown', iecPrefix: '%MW', isBit: false }
+    }
+  }
 }
 
 const generateIOPoints = (
@@ -1713,6 +1712,7 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
         cycleTime: number
         offset: string
         length: number
+        nodeId?: number
         errorHandling: 'keep-last-value' | 'set-to-zero'
       },
     ): ProjectResponse => {
@@ -1753,7 +1753,7 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
           const ioPoints = generateIOPoints(ioGroup.functionCode, ioGroup.length, ioGroup.name, usedAddresses, device.protocol)
           device.modbusTcpConfig.ioGroups.push({
             ...ioGroup,
-            ioPoints,            
+            ioPoints,
           })
         }),
       )
@@ -1769,6 +1769,7 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
         cycleTime?: number
         offset?: string
         length?: number
+        nodeId?: number
         errorHandling?: 'keep-last-value' | 'set-to-zero'
       },
     ): ProjectResponse => {
@@ -1794,6 +1795,7 @@ const createProjectSlice: StateCreator<ProjectSlice, [], [], ProjectSlice> = (se
           if (updates.cycleTime !== undefined) ioGroup.cycleTime = updates.cycleTime
           if (updates.offset !== undefined) ioGroup.offset = updates.offset
           if (updates.length !== undefined) ioGroup.length = updates.length
+          if (updates.nodeId !== undefined) ioGroup.nodeId = updates.nodeId
           if (updates.errorHandling !== undefined) ioGroup.errorHandling = updates.errorHandling
           if (updates.functionCode !== undefined || updates.length !== undefined || updates.name !== undefined) {
             const usedAddresses = new Set<string>()

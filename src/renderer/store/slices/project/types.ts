@@ -414,6 +414,7 @@ const _projectActionsSchema = z.object({
         cycleTime: z.number(),
         offset: z.string(),
         length: z.number(),
+        nodeId: z.number().optional(),
         errorHandling: z.enum(['keep-last-value', 'set-to-zero']),
       }),
     )
@@ -429,6 +430,7 @@ const _projectActionsSchema = z.object({
         cycleTime: z.number().optional(),
         offset: z.string().optional(),
         length: z.number().optional(),
+        nodeId: z.number().optional(),
         errorHandling: z.enum(['keep-last-value', 'set-to-zero']).optional(),
       }),
     )

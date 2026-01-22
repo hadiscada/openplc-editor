@@ -1,4 +1,4 @@
-import type { ModbusIOGroup,PLCRemoteDevice } from '@root/types/PLC/open-plc'
+import type { ModbusIOGroup, PLCRemoteDevice } from '@root/types/PLC/open-plc'
 
 // Struktur per Group/Pesan CAN (analog dengan Modbus IO Point)
 interface CanMasterIOPoint {
@@ -38,7 +38,7 @@ const formatOffsetAsHex = (offset: string): string => {
 const convertIOGroupToCanIO = (ioGroup: ModbusIOGroup, nodeId: number): CanMasterIOPoint => {
   const firstIOPoint = ioGroup.ioPoints[0]
   const iecLocation = firstIOPoint?.iecLocation || '%IX0.0'
-  
+
   // Deteksi tipe sederhana untuk runtime
   const type = ioGroup.functionCode === '2' ? 'DI' : 'DO'
 
@@ -57,39 +57,55 @@ const convertIOGroupToCanIO = (ioGroup: ModbusIOGroup, nodeId: number): CanMaste
  * Fungsi utama untuk men-generate file konfigurasi canbus.json
  */
 export const generateCanbusConfig = (
-  enable: boolean,
   //conf: CanbusConfig | undefined,
   remoteDevices: PLCRemoteDevice[] | undefined
-): string => {
-  const isEnabled = enable || false;
+): string | null => {
 
-  const canDevices = remoteDevices?.filter(d => d.protocol === 'canbus') || [];
+  const canDevices = remoteDevices?.filter(d => d.protocol === 'canbus');
 
+  if (!canDevices || canDevices.length === 0) {
+    return null
+  }
+
+  // Map each OpenPLC Remote Device (CANbus) to a device entry in the config
   const mappedDevices: CanMasterDevice[] = canDevices.map(device => {
     const groups = device.modbusTcpConfig?.ioGroups || [];
-    
-    // Gunakan fallback yang lebih aman untuk Node ID
-    const nodeIdMatch = device.name.match(/Node(\d+)/);
-    const nodeId = nodeIdMatch ? parseInt(nodeIdMatch[1], 10) : 1;
+    const deviceGroups: CanMasterIOPoint[] = [];
+
+    groups.forEach(group => {
+      // Prioritize the nodeId stored in the group.
+      // Fallback: try to parse from group name, or device name, or default to 1.
+      let nodeId = group.nodeId;
+      if (nodeId === undefined) {
+        const match = group.name.match(/Node(\d+)/);
+        if (match) {
+          nodeId = parseInt(match[1], 10);
+        } else {
+          const deviceMatch = device.name.match(/Node(\d+)/);
+          nodeId = deviceMatch ? parseInt(deviceMatch[1], 10) : 1;
+        }
+      }
+
+      deviceGroups.push(convertIOGroupToCanIO(group, nodeId));
+    });
 
     return {
-      name: device.name,
-      node_id: nodeId,
-      // Pastikan io_groups tidak kosong
-      io_groups: groups.map(g => convertIOGroupToCanIO(g, nodeId))
+      name: device.name, // Use the name defined in the Remote Device editor
+      node_id: 1, // Default to 1 (Master) for the container
+      io_groups: deviceGroups
     };
   });
 
   const config: CanbusFinalConfig = {
-    canbus_enabled: isEnabled ? "true" : "false",
+    canbus_enabled: "true",
     interface: "can0",
-    bitrate: 1000000, 
+    bitrate: 1000000,
     auto_restart: 100,
     devices: mappedDevices
   };
 
-  // PASTIKAN: Hasil stringify ini dikonversi secara eksplisit ke string 
+  // PASTIKAN: Hasil stringify ini dikonversi secara eksplisit ke string
   // untuk mencegah auto-conversion ke Buffer oleh library transportasi data
   const jsonString = JSON.stringify(config, null, 2);
-  return jsonString.toString(); 
+  return jsonString.toString();
 };

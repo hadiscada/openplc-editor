@@ -50,8 +50,8 @@ function logDebugTree(node: DebugTreeNode, indent = 0): void {
  */
 function buildVariableBasePath(variableName: string, instanceName: string, variableClass?: string): string {
   const variableNameUpper = variableName.toUpperCase()
-  if (variableClass === 'external') {
-    // External variables reference global variables, which use CONFIG0__ prefix
+  if (variableClass === 'external' || variableClass === 'global') {
+    // External and Global variables reference global variables, which use CONFIG0__ prefix
     return `CONFIG0__${variableNameUpper}`
   }
   // Regular POU variables use RES0__INSTANCE.VARNAME format

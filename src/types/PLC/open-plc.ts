@@ -432,8 +432,9 @@ const ModbusIOGroupSchema = z.object({
   cycleTime: z.number(),
   offset: z.string(),
   length: z.number(),
+  nodeId: z.number().optional(),
   errorHandling: ModbusErrorHandlingSchema,
-  ioPoints: z.array(ModbusIOPointSchema),  
+  ioPoints: z.array(ModbusIOPointSchema),
 })
 type ModbusIOGroup = z.infer<typeof ModbusIOGroupSchema>
 
@@ -448,7 +449,7 @@ type ModbusTcpConfig = z.infer<typeof ModbusTcpConfigSchema>
 
 const CanbusConfigSchema = z.object({
   enabled: z.boolean(),
-  rate: z.number(),  
+  rate: z.number(),
 })
 type CanbusConfig = z.infer<typeof CanbusConfigSchema>
 
@@ -536,7 +537,7 @@ export {
   ModbusIOPointSchema,
   ModbusSlaveBufferMappingSchema,
   ModbusSlaveConfigSchema,
-  ModbusTcpConfigSchema,  
+  ModbusTcpConfigSchema,
   PLCArrayDatatypeSchema,
   PLCConfigurationSchema,
   PLCDataTypeSchema,
