@@ -190,7 +190,7 @@
     "webpack-merge": "^5.9.0"
   },
   "build": {
-    "productName": "OpenPLC Editor",
+    "productName": "Gespant Logic",
     "appId": "tobedetermined.openplceditor",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",

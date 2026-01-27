@@ -1,6 +1,6 @@
 {
-  "appId": "com.autonomylogic.openplceditor",
-  "productName": "OpenPLC Editor",
+  "appId": "com.winenerji.gespantlogic",
+  "productName": "Gespant Logic",
   "asar": true,
   "asarUnpack": "**\\*.{node,dll}",
   "generateUpdatesFilesForAllChannels": true,
@@ -28,8 +28,8 @@
       "arch": ["arm64", "x64"]
     },
     "extendInfo": {
-      "CFBundleDisplayName": "OpenPLC Editor",
-      "CFBundleName": "OpenPLC Editor"
+      "CFBundleDisplayName": "Gespant Logic",
+      "CFBundleName": "Gespant Logic"
     },
     "type": "distribution",
     "hardenedRuntime": true,

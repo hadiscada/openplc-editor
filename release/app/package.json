@@ -1,10 +1,10 @@
 {
-  "name": "open-plc-editor",
-  "version": "4.1.1",
-  "description": "OpenPLC Editor - IDE capable of creating programs for the OpenPLC Runtime",
+  "name": "gespant-logic",
+  "version": "1.0.2",
+  "description": "Gespant Logic - IDE capable of creating programs for the Gespant PLC",
   "license": "MIT",
   "author": {
-    "name": "Autonomy Logic"
+    "name": "WinEnerji"
   },
   "main": "./dist/main/main.js",
   "scripts": {
