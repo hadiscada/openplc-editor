@@ -29,11 +29,11 @@
 
 @layer base {
   :root {
-    --primary-default: #02973b;
-    --primary-light: #81f561;
-    --primary-medium: #03c934;
-    --primary-medium-dark: #027519;
-    --primary-dark: #014b12;
+    --primary-default: #0464fb;
+    --primary-light: #b4d0fe;
+    --primary-medium: #0350c9;
+    --primary-medium-dark: #023c97;
+    --primary-dark: #011e4b;
     /* Fallback variables to set the height of the titlebar based on OS */
     --oplc-title-bar-height: 2rem;
     --fallback-darwin-title-bar-height: 1.75rem;
@@ -182,6 +182,21 @@
 .oplc-monaco-wrapper .monaco-editor .monaco-hover,
 .oplc-monaco-wrapper .monaco-editor .parameter-hints-widget {
   z-index: 10 !important;
+}
+
+/* Debug inline value badges for ST/IL editors during debug sessions */
+.oplc-monaco-wrapper .debug-inline-value {
+  color: #ffffff;
+  background-color: #2e7d32;
+  padding: 0px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.dark .oplc-monaco-wrapper .debug-inline-value {
+  background-color: #388e3c;
 }
 
 /* Ensure Radix popper/select content sits well above Monaco */

@@ -24,6 +24,7 @@ const GlobalVariablesEditor = () => {
     workspace: {
       systemConfigs: { shouldUseDarkMode },
     },
+    workspaceActions: { removeDebugVariable },
     project: {
       data: {
         pous,
@@ -100,10 +101,15 @@ const GlobalVariablesEditor = () => {
           selectedRow: selectedRow,
           description: description,
         })
-      } else
+      } else if (editor.variable.display === 'code') {
+        const code = editor.variable.code
         setEditorVariables({
           display: editor.variable.display,
         })
+        if (typeof code === 'string') {
+          setEditorCode(code)
+        }
+      }
   }, [editor])
 
   useEffect(() => {
@@ -134,6 +140,7 @@ const GlobalVariablesEditor = () => {
 
     updateModelVariables({
       display: value,
+      code: value === 'code' ? editorCode : undefined,
     })
   }
 
@@ -151,6 +158,7 @@ const GlobalVariablesEditor = () => {
       display: 'table',
       selectedRow: parseInt(editorVariables.selectedRow) + index,
     })
+    handleFileAndWorkspaceSavedState('Resource')
   }
 
   const handleCreateVariable = () => {
@@ -212,6 +220,14 @@ const GlobalVariablesEditor = () => {
     addSnapshot(editor.meta.name)
 
     const selectedRow = parseInt(editorVariables.selectedRow)
+    const variables = globalVariables.filter((variable) => variable.name)
+    const variableToDelete = variables[selectedRow]
+
+    if (variableToDelete) {
+      const compositeKey = `resource:${variableToDelete.name}`
+      removeDebugVariable(compositeKey)
+    }
+
     const result = deleteVariable({ scope: 'global', rowId: selectedRow })
 
     if (!result.ok) {
@@ -219,7 +235,6 @@ const GlobalVariablesEditor = () => {
       return
     }
 
-    const variables = globalVariables.filter((variable) => variable.name)
     if (selectedRow === variables.length - 1) {
       updateModelVariables({
         display: 'table',

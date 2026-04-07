@@ -2,7 +2,7 @@ import { DeviceConfiguration } from '@root/types/PLC/devices'
 
 // Default configuration for deviceDefinitions.configuration
 export const defaultDeviceConfiguration: DeviceConfiguration = {
-  deviceBoard: 'OpenPLC Runtime v3',
+  deviceBoard: 'OpenPLC Simulator',
   communicationPort: '',
   runtimeIpAddress: '',
   compileOnly: false,
@@ -23,14 +23,10 @@ export const defaultDeviceConfiguration: DeviceConfiguration = {
         subnet: '',
       },
     },
-    canBus:{
-      canRate: '1000000',
-    },
     communicationPreferences: {
       enabledRTU: false,
       enabledTCP: false,
       enabledDHCP: true,
-      enabledCAN: false,
-    },    
+    },
   },
 }

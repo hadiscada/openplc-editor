@@ -1,3 +1,4 @@
+import * as Popover from '@radix-ui/react-popover'
 import { ArrowIcon, MinusIcon, PlusIcon } from '@root/renderer/assets/icons'
 import { InputWithRef } from '@root/renderer/components/_atoms/input'
 import { Label } from '@root/renderer/components/_atoms/label'
@@ -7,7 +8,7 @@ import { Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from '@root
 import { useOpenPLCStore } from '@root/renderer/store'
 import type { ModbusIOGroup, ModbusIOPoint } from '@root/types/PLC/open-plc'
 import { cn } from '@root/utils'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 type FunctionCodeOption = {
@@ -31,6 +32,234 @@ const ERROR_HANDLING_OPTIONS = [
   { value: 'set-to-zero', label: 'Set to zero' },
 ]
 
+// Modbus transport type options
+const TRANSPORT_OPTIONS = [
+  { value: 'tcp', label: 'TCP/IP' },
+  { value: 'rtu', label: 'RTU (Serial)' },
+]
+
+// RTU configuration options
+const BAUD_RATE_OPTIONS = [
+  { value: '9600', label: '9600' },
+  { value: '19200', label: '19200' },
+  { value: '38400', label: '38400' },
+  { value: '57600', label: '57600' },
+  { value: '115200', label: '115200' },
+]
+
+const PARITY_OPTIONS = [
+  { value: 'N', label: 'None' },
+  { value: 'E', label: 'Even' },
+  { value: 'O', label: 'Odd' },
+]
+
+const STOP_BITS_OPTIONS = [
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+]
+
+const DATA_BITS_OPTIONS = [
+  { value: '7', label: '7' },
+  { value: '8', label: '8' },
+]
+
+// Slave ID validation ranges per transport type
+const SLAVE_ID_TCP_MIN = 0
+const SLAVE_ID_TCP_MAX = 255
+const SLAVE_ID_RTU_MIN = 1
+const SLAVE_ID_RTU_MAX = 247
+
+type SerialPortOption = {
+  value: string
+  label: string
+}
+
+type SerialPortComboboxProps = {
+  value: string
+  onValueChange: (value: string) => void
+  options: SerialPortOption[]
+  isLoading?: boolean
+  placeholder?: string
+}
+
+/**
+ * Editable combobox for serial port selection.
+ * Shows a dropdown with available ports from runtime, but also allows typing custom values.
+ */
+const SerialPortCombobox = ({
+  value,
+  onValueChange,
+  options,
+  isLoading = false,
+  placeholder = '/dev/ttyUSB0',
+}: SerialPortComboboxProps) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [inputValue, setInputValue] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const optionRefs = useRef<Array<HTMLDivElement | null>>([])
+  const [highlightedIndex, setHighlightedIndex] = useState(-1)
+
+  // Sync input value with external value changes
+  useEffect(() => {
+    setInputValue(value)
+  }, [value])
+
+  // Filter options based on input
+  const filteredOptions = useMemo(() => {
+    if (!inputValue.trim()) return options
+    const lowerInput = inputValue.toLowerCase()
+    return options.filter(
+      (opt) => opt.value.toLowerCase().includes(lowerInput) || opt.label.toLowerCase().includes(lowerInput),
+    )
+  }, [options, inputValue])
+
+  // Focus input when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+        // Find and highlight current value in list
+        const currentIndex = filteredOptions.findIndex((opt) => opt.value === value)
+        setHighlightedIndex(currentIndex >= 0 ? currentIndex : -1)
+      }, 0)
+    }
+  }, [isOpen, filteredOptions, value])
+
+  // Scroll highlighted option into view
+  useEffect(() => {
+    if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length && optionRefs.current[highlightedIndex]) {
+      optionRefs.current[highlightedIndex]?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlightedIndex, filteredOptions.length])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value)
+    setHighlightedIndex(-1)
+  }
+
+  const handleInputBlur = () => {
+    // Commit the value on blur if it changed
+    if (inputValue !== value) {
+      onValueChange(inputValue)
+    }
+  }
+
+  const handleSelectOption = (optionValue: string) => {
+    setInputValue(optionValue)
+    onValueChange(optionValue)
+    setIsOpen(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightedIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : 0))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : filteredOptions.length - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+        handleSelectOption(filteredOptions[highlightedIndex].value)
+      } else if (inputValue.trim()) {
+        onValueChange(inputValue.trim())
+        setIsOpen(false)
+      }
+    } else if (e.key === 'Escape') {
+      setIsOpen(false)
+    }
+  }
+
+  // Handle popover open/close - commit pending value when closing
+  const handleOpenChange = (open: boolean) => {
+    // When closing, commit any pending value before the input unmounts
+    // This handles the case where user types a value and clicks outside
+    if (!open && inputValue.trim() !== value) {
+      onValueChange(inputValue.trim())
+    }
+    setIsOpen(open)
+  }
+
+  return (
+    <Popover.Root open={isOpen} onOpenChange={handleOpenChange}>
+      <Popover.Trigger asChild>
+        <button
+          type='button'
+          className='flex h-[30px] w-full max-w-[200px] items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+        >
+          <span className='truncate text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+            {value || placeholder}
+          </span>
+          <ArrowIcon size='sm' className={cn('rotate-270 stroke-brand transition-all', isOpen && 'rotate-90')} />
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          sideOffset={5}
+          align='start'
+          className='z-50 w-[--radix-popover-trigger-width] min-w-[200px] rounded-lg border border-neutral-300 bg-white shadow-lg outline-none dark:border-brand-medium-dark dark:bg-neutral-950'
+        >
+          <div className='p-2'>
+            <InputWithRef
+              ref={inputRef}
+              value={inputValue}
+              onChange={handleInputChange}
+              onBlur={handleInputBlur}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              className='h-[28px] w-full rounded-md border border-neutral-200 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
+            />
+          </div>
+          <div className='max-h-[200px] overflow-y-auto'>
+            {isLoading ? (
+              <div className='flex items-center justify-center py-2 text-xs text-neutral-500'>Loading ports...</div>
+            ) : filteredOptions.length > 0 ? (
+              filteredOptions.map((option, index) => (
+                <div
+                  key={option.value}
+                  ref={(el) => (optionRefs.current[index] = el)}
+                  className={cn(
+                    'flex w-full cursor-pointer flex-col px-2 py-1 outline-none hover:bg-neutral-100 dark:hover:bg-neutral-800',
+                    (value === option.value || highlightedIndex === index) && 'bg-neutral-100 dark:bg-neutral-800',
+                  )}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onClick={() => handleSelectOption(option.value)}
+                  role='option'
+                  aria-selected={highlightedIndex === index}
+                >
+                  <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                    {option.value}
+                  </span>
+                  {option.label !== option.value && (
+                    <span className='text-start font-caption text-[10px] font-normal text-neutral-500 dark:text-neutral-400'>
+                      {option.label}
+                    </span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className='px-2 py-2 text-center text-xs text-neutral-500'>
+                {options.length === 0 ? 'No ports available. Type a custom value.' : 'No matches. Type a custom value.'}
+              </div>
+            )}
+          </div>
+          {inputValue.trim() && !filteredOptions.some((opt) => opt.value === inputValue.trim()) && (
+            <div
+              className='flex cursor-pointer items-center gap-2 border-t border-neutral-200 px-2 py-1 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800'
+              onClick={() => handleSelectOption(inputValue.trim())}
+            >
+              <PlusIcon className='h-3 w-3 stroke-brand' />
+              <span className='font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                Use "{inputValue.trim()}"
+              </span>
+            </div>
+          )}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+}
+
 const getFunctionCodeLabel = (fc: string): string => {
   const option = FUNCTION_CODE_OPTIONS.find((o) => o.value === fc)
   return option ? option.label : `FC ${fc}`
@@ -45,19 +274,10 @@ type IOGroupModalProps = {
     cycleTime: number
     offset: string
     length: number
-
-    nodeId?: number
     errorHandling: 'keep-last-value' | 'set-to-zero'
   }) => void
   editingGroup?: ModbusIOGroup | null
 }
-
-const MODULE_TYPE_OPTIONS = [
-  { value: '2', label: 'Digital Input' },
-  { value: '15', label: 'Digital Output' },
-  { value: '4', label: 'Analog Input' },
-  { value: '16', label: 'Analog Output' },
-]
 
 const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalProps) => {
   const [name, setName] = useState('')
@@ -65,19 +285,10 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
   const [cycleTime, setCycleTime] = useState('100')
   const [offset, setOffset] = useState('0')
   const [length, setLength] = useState('1')
-
-  const [nodeId, setNodeId] = useState('1')
   const [errorHandling, setErrorHandling] = useState<'keep-last-value' | 'set-to-zero'>('keep-last-value')
 
   // FC 5 (Write Single Coil) and FC 6 (Write Single Register) are single-element operations
   const isSingleElementOperation = functionCode === '5' || functionCode === '6'
-
-
-  const { editor } = useOpenPLCStore()
-  const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
-  const isCanbus = protocol === 'canbus'
-
-
 
   useEffect(() => {
     if (editingGroup) {
@@ -88,8 +299,6 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
       // For single-element operations, length is always 1
       const isSingleElement = editingGroup.functionCode === '5' || editingGroup.functionCode === '6'
       setLength(isSingleElement ? '1' : editingGroup.length.toString())
-
-      setNodeId(editingGroup.nodeId?.toString() || '1')
       setErrorHandling(editingGroup.errorHandling)
     } else {
       setName('')
@@ -97,7 +306,6 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
       setCycleTime('100')
       setOffset('0')
       setLength('1')
-
       setErrorHandling('keep-last-value')
     }
   }, [editingGroup, isOpen])
@@ -117,8 +325,6 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
       cycleTime: parseInt(cycleTime, 10) || 100,
       offset,
       length: parseInt(length, 10) || 1,
-
-      nodeId: isCanbus ? (parseInt(nodeId, 10) || 1) : undefined,
       errorHandling,
     })
     setName('')
@@ -126,7 +332,6 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
     setCycleTime('100')
     setOffset('0')
     setLength('1')
-
     setErrorHandling('keep-last-value')
     onClose()
   }
@@ -151,7 +356,7 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
             />
           </div>
           <div className='flex items-center gap-2'>
-            <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>{isCanbus ? 'Module Type' : 'Function Code'}</Label>
+            <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Function Code</Label>
             <Select value={functionCode} onValueChange={(v) => setFunctionCode(v as typeof functionCode)}>
               <SelectTrigger
                 withIndicator
@@ -159,42 +364,33 @@ const IOGroupModal = ({ isOpen, onClose, onSubmit, editingGroup }: IOGroupModalP
                 className='flex h-[30px] w-full items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
               />
               <SelectContent className='h-fit max-h-[200px] w-[--radix-select-trigger-width] overflow-y-auto rounded-lg border border-neutral-300 bg-white outline-none drop-shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'>
-                {(isCanbus ? MODULE_TYPE_OPTIONS : FUNCTION_CODE_OPTIONS).map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <span className={cn(
+                {FUNCTION_CODE_OPTIONS.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    className={cn(
                       'data-[state=checked]:[&:not(:hover)]:bg-neutral-100 data-[state=checked]:dark:[&:not(:hover)]:bg-neutral-900',
                       'flex w-full cursor-pointer items-center justify-start px-2 py-1 outline-none hover:bg-neutral-100 dark:hover:bg-neutral-800',
-                    )}>{option.label}</span>
+                    )}
+                  >
+                    <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                      {option.label}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          {isCanbus && (
-            <div className='flex items-center gap-2'>
-              <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Node ID</Label>
-              <InputWithRef
-                type='number'
-                value={nodeId}
-                onChange={(e) => setNodeId(e.target.value)}
-                placeholder='1'
-                min='1'
-                className={inputStyles}
-              />
-            </div>
-          )}
-          {!isCanbus && (
-            <div className='flex items-center gap-2'>
-              <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Cycle Time (ms)</Label>
-              <InputWithRef
-                type='number'
-                value={cycleTime}
-                onChange={(e) => setCycleTime(e.target.value)}
-                placeholder='100'
-                className={inputStyles}
-              />
-            </div>
-          )}
+          <div className='flex items-center gap-2'>
+            <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Cycle Time (ms)</Label>
+            <InputWithRef
+              type='number'
+              value={cycleTime}
+              onChange={(e) => setCycleTime(e.target.value)}
+              placeholder='100'
+              className={inputStyles}
+            />
+          </div>
           <div className='flex items-center gap-2'>
             <Label className='w-28 whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Offset</Label>
             <InputWithRef
@@ -287,13 +483,7 @@ const IOGroupRow = ({
   const firstIOPoint = ioGroup.ioPoints[0]
   const groupType = firstIOPoint?.type || '-'
   const groupAddress = firstIOPoint?.iecLocation || '-'
-
   const groupOffset = ioGroup.offset
-  const groupNodeId = ioGroup.nodeId || '-'
-
-  const { editor } = useOpenPLCStore()
-  const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
-  const isCanbus = protocol === 'canbus'
 
   return (
     <>
@@ -323,14 +513,9 @@ const IOGroupRow = ({
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupType}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupAddress}</td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupOffset}</td>
-        {isCanbus && (
-          <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>{groupNodeId}</td>
-        )}
-        {!isCanbus && (
-          <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>
-            {getFunctionCodeLabel(ioGroup.functionCode)}
-          </td>
-        )}
+        <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>
+          {getFunctionCodeLabel(ioGroup.functionCode)}
+        </td>
         <td className='px-2 py-2 text-sm text-neutral-700 dark:text-neutral-300'>-</td>
       </tr>
       {isExpanded &&
@@ -355,10 +540,6 @@ type IOPointRowProps = {
 const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
   const [alias, setAlias] = useState(ioPoint.alias || '')
 
-  const { editor } = useOpenPLCStore()
-  const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
-  const isCanbus = protocol === 'canbus'
-
   const handleBlur = () => {
     if (alias !== ioPoint.alias) {
       onUpdateAlias(alias)
@@ -372,10 +553,7 @@ const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.type}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{ioPoint.iecLocation}</td>
       <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>{offset}</td>
-      <td className='px-2 py-2 text-xs text-neutral-600 dark:text-neutral-400'>{offset}</td>
-      {!isCanbus && (
-        <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>-</td>
-      )}
+      <td className='px-2 py-1 text-xs text-neutral-600 dark:text-neutral-400'>-</td>
       <td className='px-2 py-1'>
         <InputWithRef
           value={alias}
@@ -389,89 +567,43 @@ const IOPointRow = ({ ioPoint, offset, onUpdateAlias }: IOPointRowProps) => {
   )
 }
 
-interface CANDevice {
-  node_id: number;
-  hex_id: string;
-  product_code: string; // 0x1 = GPA116 (DI), dsb
-  type: string;
-  vendor_id: string;
-}
-
-const DEVICE_MAPPING_DATABASE: Record<string, { name: string; type: 'DI' | 'DO'; points: number; fc: '2' | '15' }> = {
-  '0x2': { name: 'GPA216', type: 'DI', points: 16, fc: '2' },  // Read Discrete Inputs
-  '0x1': { name: 'GPA116', type: 'DO', points: 16, fc: '15' }, // Write Multiple Coils
-};
-
-
-
 const RemoteDeviceEditor = () => {
-  const { editor, project, projectActions, workspaceActions } = useOpenPLCStore()
-
-  const [isScanning, setIsScanning] = useState(false)
-  const [scanResults, setScanResults] = useState<CANDevice[] | null>(null)
+  const { editor, project, projectActions, sharedWorkspaceActions, runtimeConnection } = useOpenPLCStore()
 
   const deviceName = editor.type === 'plc-remote-device' ? editor.meta.name : ''
   const protocol = editor.type === 'plc-remote-device' ? editor.meta.protocol : ''
-  const isCanbus = protocol === 'canbus'
 
   const remoteDevice = useMemo(() => {
     return project.data.remoteDevices?.find((d) => d.name === deviceName)
   }, [project.data.remoteDevices, deviceName])
 
-  // --- Logic Modbus (Existing) ---
+  // Runtime connection state
+  const { connectionStatus, jwtToken, ipAddress } = runtimeConnection
+  const isConnectedToRuntime = connectionStatus === 'connected' && ipAddress !== null && jwtToken !== null
+
+  // Serial port options state
+  const [serialPortOptions, setSerialPortOptions] = useState<SerialPortOption[]>([])
+  const [isLoadingSerialPorts, setIsLoadingSerialPorts] = useState(false)
+
+  // Transport type state
+  const [transport, setTransport] = useState<'tcp' | 'rtu'>('tcp')
+
+  // TCP-specific state
   const [host, setHost] = useState('')
   const [port, setPort] = useState('')
+
+  // RTU-specific state
+  const [serialPort, setSerialPort] = useState('')
+  const [baudRate, setBaudRate] = useState('9600')
+  const [parity, setParity] = useState<'N' | 'E' | 'O'>('N')
+  const [stopBits, setStopBits] = useState('1')
+  const [dataBits, setDataBits] = useState('8')
+
+  // Common state
   const [timeoutMs, setTimeoutMs] = useState('')
   const [slaveId, setSlaveId] = useState('')
 
-  const jwtToken = useOpenPLCStore((state) => state.runtimeConnection.jwtToken)
-  const ipAddress = useOpenPLCStore((state) => state.deviceDefinitions.configuration.runtimeIpAddress)
-
-
-  // --- Logic CANbus Scan ---
-  const handleScanCAN = async () => {
-    if (!ipAddress || !jwtToken) {
-      console.error("Connection credentials missing");
-      return;
-    }
-    setIsScanning(true)
-    try {
-      const result = await window.bridge.runtimeScanCanbus(
-        ipAddress,
-        jwtToken
-      )
-      if (result.success && result.devices) {
-        // Masukkan hanya jika devices tidak undefined
-        setScanResults(result.devices as CANDevice[]);
-      } else {
-        // Jika gagal atau tidak ada device, set ke array kosong agar tidak undefined
-        setScanResults([]);
-      }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setIsScanning(false)
-    }
-  }
-
-  const handleAutoMap = (device: CANDevice) => {
-    const specs = DEVICE_MAPPING_DATABASE[device.product_code]
-    if (!specs) return
-
-    projectActions.addIOGroup(deviceName, {
-      id: uuidv4(),
-      name: `${specs.name}_Node${device.node_id}`,
-      functionCode: specs.fc,
-      cycleTime: 0,
-      offset: "0",
-      length: specs.points,
-
-      nodeId: device.node_id,
-      errorHandling: 'set-to-zero',
-    })
-    workspaceActions.setEditingState('unsaved')
-  }
-
+  // UI state
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -479,13 +611,30 @@ const RemoteDeviceEditor = () => {
 
   useEffect(() => {
     if (remoteDevice?.modbusTcpConfig) {
-      setHost(remoteDevice.modbusTcpConfig.host)
-      setPort(remoteDevice.modbusTcpConfig.port.toString())
-      setTimeoutMs(remoteDevice.modbusTcpConfig.timeout.toString())
-      setSlaveId((remoteDevice.modbusTcpConfig.slaveId ?? 1).toString())
+      const config = remoteDevice.modbusTcpConfig
+      // Transport type (defaults to 'tcp' for backward compatibility)
+      setTransport(config.transport || 'tcp')
+      // TCP fields
+      setHost(config.host ?? '127.0.0.1')
+      setPort((config.port ?? 502).toString())
+      // RTU fields
+      setSerialPort(config.serialPort ?? '')
+      setBaudRate((config.baudRate ?? 9600).toString())
+      setParity(config.parity ?? 'N')
+      setStopBits((config.stopBits ?? 1).toString())
+      setDataBits((config.dataBits ?? 8).toString())
+      // Common fields
+      setTimeoutMs(config.timeout.toString())
+      setSlaveId((config.slaveId ?? 1).toString())
     } else {
+      setTransport('tcp')
       setHost('127.0.0.1')
       setPort('502')
+      setSerialPort('')
+      setBaudRate('9600')
+      setParity('N')
+      setStopBits('1')
+      setDataBits('8')
       setTimeoutMs('1000')
       setSlaveId('1')
     }
@@ -493,41 +642,135 @@ const RemoteDeviceEditor = () => {
 
   const ioGroups = remoteDevice?.modbusTcpConfig?.ioGroups || []
 
+  // Fetch serial ports from runtime when transport is RTU and connected
+  const fetchSerialPorts = useCallback(async () => {
+    if (!isConnectedToRuntime || !ipAddress || !jwtToken) {
+      setSerialPortOptions([])
+      return
+    }
+
+    setIsLoadingSerialPorts(true)
+    try {
+      const result = await window.bridge.runtimeGetSerialPorts(ipAddress, jwtToken)
+
+      if (result.success && result.ports) {
+        const options: SerialPortOption[] = result.ports.map((port) => ({
+          value: port.device,
+          label: port.description || port.device,
+        }))
+        setSerialPortOptions(options)
+      } else {
+        console.warn(`Failed to fetch serial ports: ${result.error || 'Unknown error'}`)
+        setSerialPortOptions([])
+      }
+    } catch (error) {
+      console.warn(`Error fetching serial ports: ${String(error)}`)
+      setSerialPortOptions([])
+    } finally {
+      setIsLoadingSerialPorts(false)
+    }
+  }, [isConnectedToRuntime, ipAddress, jwtToken])
+
+  // Fetch serial ports when transport changes to RTU or when runtime connection changes
+  useEffect(() => {
+    if (transport === 'rtu') {
+      void fetchSerialPorts()
+    }
+  }, [transport, isConnectedToRuntime, fetchSerialPorts])
+
   const handleHostBlur = useCallback(() => {
     if (host !== remoteDevice?.modbusTcpConfig?.host) {
       projectActions.updateRemoteDeviceConfig(deviceName, { host })
-      workspaceActions.setEditingState('unsaved')
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
     }
-  }, [host, deviceName, remoteDevice?.modbusTcpConfig?.host, projectActions, workspaceActions])
+  }, [host, deviceName, remoteDevice?.modbusTcpConfig?.host, projectActions, sharedWorkspaceActions])
 
   const handlePortBlur = useCallback(() => {
     const portNum = parseInt(port, 10)
     if (!isNaN(portNum) && portNum !== remoteDevice?.modbusTcpConfig?.port) {
       projectActions.updateRemoteDeviceConfig(deviceName, { port: portNum })
-      workspaceActions.setEditingState('unsaved')
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
     }
-  }, [port, deviceName, remoteDevice?.modbusTcpConfig?.port, projectActions, workspaceActions])
+  }, [port, deviceName, remoteDevice?.modbusTcpConfig?.port, projectActions, sharedWorkspaceActions])
 
   const handleTimeoutBlur = useCallback(() => {
     const timeoutNum = parseInt(timeoutMs, 10)
     if (!isNaN(timeoutNum) && timeoutNum !== remoteDevice?.modbusTcpConfig?.timeout) {
       projectActions.updateRemoteDeviceConfig(deviceName, { timeout: timeoutNum })
-      workspaceActions.setEditingState('unsaved')
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
     }
-  }, [timeoutMs, deviceName, remoteDevice?.modbusTcpConfig?.timeout, projectActions, workspaceActions])
+  }, [timeoutMs, deviceName, remoteDevice?.modbusTcpConfig?.timeout, projectActions, sharedWorkspaceActions])
 
   const handleSlaveIdBlur = useCallback(() => {
     const slaveIdNum = parseInt(slaveId, 10)
+    const minSlaveId = transport === 'rtu' ? SLAVE_ID_RTU_MIN : SLAVE_ID_TCP_MIN
+    const maxSlaveId = transport === 'rtu' ? SLAVE_ID_RTU_MAX : SLAVE_ID_TCP_MAX
     if (
       !isNaN(slaveIdNum) &&
-      slaveIdNum >= 0 &&
-      slaveIdNum <= 255 &&
+      slaveIdNum >= minSlaveId &&
+      slaveIdNum <= maxSlaveId &&
       slaveIdNum !== remoteDevice?.modbusTcpConfig?.slaveId
     ) {
       projectActions.updateRemoteDeviceConfig(deviceName, { slaveId: slaveIdNum })
-      workspaceActions.setEditingState('unsaved')
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
     }
-  }, [slaveId, deviceName, remoteDevice?.modbusTcpConfig?.slaveId, projectActions, workspaceActions])
+  }, [slaveId, transport, deviceName, remoteDevice?.modbusTcpConfig?.slaveId, projectActions, sharedWorkspaceActions])
+
+  // Transport type handler
+  const handleTransportChange = useCallback(
+    (newTransport: 'tcp' | 'rtu') => {
+      setTransport(newTransport)
+      projectActions.updateRemoteDeviceConfig(deviceName, { transport: newTransport })
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
+    },
+    [deviceName, projectActions, sharedWorkspaceActions],
+  )
+
+  // RTU field handlers
+  const handleSerialPortChange = useCallback(
+    (value: string) => {
+      setSerialPort(value)
+      projectActions.updateRemoteDeviceConfig(deviceName, { serialPort: value })
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
+    },
+    [deviceName, projectActions, sharedWorkspaceActions],
+  )
+
+  const handleBaudRateChange = useCallback(
+    (value: string) => {
+      setBaudRate(value)
+      projectActions.updateRemoteDeviceConfig(deviceName, { baudRate: parseInt(value, 10) })
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
+    },
+    [deviceName, projectActions, sharedWorkspaceActions],
+  )
+
+  const handleParityChange = useCallback(
+    (value: 'N' | 'E' | 'O') => {
+      setParity(value)
+      projectActions.updateRemoteDeviceConfig(deviceName, { parity: value })
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
+    },
+    [deviceName, projectActions, sharedWorkspaceActions],
+  )
+
+  const handleStopBitsChange = useCallback(
+    (value: string) => {
+      setStopBits(value)
+      projectActions.updateRemoteDeviceConfig(deviceName, { stopBits: parseInt(value, 10) })
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
+    },
+    [deviceName, projectActions, sharedWorkspaceActions],
+  )
+
+  const handleDataBitsChange = useCallback(
+    (value: string) => {
+      setDataBits(value)
+      projectActions.updateRemoteDeviceConfig(deviceName, { dataBits: parseInt(value, 10) })
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
+    },
+    [deviceName, projectActions, sharedWorkspaceActions],
+  )
 
   const handleToggleExpand = useCallback((groupId: string) => {
     setExpandedGroups((prev) => {
@@ -569,8 +812,6 @@ const RemoteDeviceEditor = () => {
       cycleTime: number
       offset: string
       length: number
-
-      nodeId?: number
       errorHandling: 'keep-last-value' | 'set-to-zero'
     }) => {
       if (editingGroup) {
@@ -581,32 +822,42 @@ const RemoteDeviceEditor = () => {
           ...data,
         })
       }
-      workspaceActions.setEditingState('unsaved')
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
     },
-    [deviceName, projectActions, editingGroup, workspaceActions],
+    [deviceName, projectActions, editingGroup, sharedWorkspaceActions],
   )
 
   const handleDeleteIOGroup = useCallback(() => {
     if (selectedGroupId) {
       projectActions.deleteIOGroup(deviceName, selectedGroupId)
       setSelectedGroupId(null)
-      workspaceActions.setEditingState('unsaved')
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
     }
-  }, [deviceName, selectedGroupId, projectActions, workspaceActions])
+  }, [deviceName, selectedGroupId, projectActions, sharedWorkspaceActions])
 
   const handleUpdateAlias = useCallback(
     (ioGroupId: string, ioPointId: string, alias: string) => {
       projectActions.updateIOPointAlias(deviceName, ioGroupId, ioPointId, alias)
-      workspaceActions.setEditingState('unsaved')
+      sharedWorkspaceActions.handleFileAndWorkspaceSavedState(deviceName)
     },
-    [deviceName, projectActions, workspaceActions],
+    [deviceName, projectActions, sharedWorkspaceActions],
   )
 
   const inputStyles =
     'h-[30px] w-full max-w-[200px] rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
 
+  const selectTriggerStyles =
+    'flex h-[30px] w-full max-w-[200px] items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
 
-  if (protocol !== 'modbus-tcp' && !isCanbus) {
+  const selectContentStyles =
+    'h-fit max-h-[200px] w-[--radix-select-trigger-width] overflow-y-auto rounded-lg border border-neutral-300 bg-white outline-none drop-shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'
+
+  const selectItemStyles = cn(
+    'data-[state=checked]:[&:not(:hover)]:bg-neutral-100 data-[state=checked]:dark:[&:not(:hover)]:bg-neutral-900',
+    'flex w-full cursor-pointer items-center justify-start px-2 py-1 outline-none hover:bg-neutral-100 dark:hover:bg-neutral-800',
+  )
+
+  if (protocol !== 'modbus-tcp') {
     return (
       <div aria-label='Remote device content container' className='flex h-full w-full flex-col overflow-hidden p-4'>
         <div className='mb-4'>
@@ -622,96 +873,162 @@ const RemoteDeviceEditor = () => {
     )
   }
 
-
   return (
     <div aria-label='Remote device content container' className='flex h-full w-full flex-col overflow-hidden p-4'>
-      <div className='mb-4 flex justify-between items-center'>
-        <div>
-          <h2 className='text-lg font-semibold'>Remote Device: {deviceName}</h2>
-          <p className='text-sm text-neutral-500'>Protocol: {isCanbus ? 'CANbus' : 'Modbus/TCP'}</p>
-        </div>
-        {isCanbus && (
-          <button onClick={() => void handleScanCAN()} disabled={isScanning} className='h-8 px-4 bg-brand text-white rounded-md text-sm font-medium disabled:opacity-50'>
-            {isScanning ? 'Scanning...' : 'Scan CAN Network'}
-          </button>
-        )}
+      <div className='mb-4'>
+        <h2 className='text-lg font-semibold text-neutral-1000 dark:text-neutral-100'>Remote Device: {deviceName}</h2>
+        <p className='text-sm text-neutral-600 dark:text-neutral-400'>
+          Protocol: Modbus {transport === 'tcp' ? '(TCP/IP)' : '(RTU/Serial)'}
+        </p>
       </div>
 
-      {!isCanbus && (
-        <div className='mb-6 flex flex-wrap gap-6'>
-          <div className='flex items-center gap-2'>
-            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>IP Address</Label>
-            <InputWithRef
-              value={host}
-              onChange={(e) => setHost(e.target.value)}
-              onBlur={handleHostBlur}
-              placeholder='127.0.0.1'
-              className={inputStyles}
-            />
-          </div>
-          <div className='flex items-center gap-2'>
-            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Port</Label>
-            <InputWithRef
-              type='number'
-              value={port}
-              onChange={(e) => setPort(e.target.value)}
-              onBlur={handlePortBlur}
-              placeholder='502'
-              className={inputStyles}
-            />
-          </div>
-          <div className='flex items-center gap-2'>
-            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Response Timeout (ms)</Label>
-            <InputWithRef
-              type='number'
-              value={timeoutMs}
-              onChange={(e) => setTimeoutMs(e.target.value)}
-              onBlur={handleTimeoutBlur}
-              placeholder='1000'
-              className={inputStyles}
-            />
-          </div>
-          <div className='flex items-center gap-2'>
-            <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Slave ID</Label>
-            <InputWithRef
-              type='number'
-              value={slaveId}
-              onChange={(e) => setSlaveId(e.target.value)}
-              onBlur={handleSlaveIdBlur}
-              placeholder='1'
-              min={0}
-              max={255}
-              className={inputStyles}
-            />
-          </div>
+      <div className='mb-6 flex flex-wrap gap-6'>
+        {/* Transport Type Selector */}
+        <div className='flex items-center gap-2'>
+          <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Transport</Label>
+          <Select value={transport} onValueChange={(v) => handleTransportChange(v as 'tcp' | 'rtu')}>
+            <SelectTrigger withIndicator placeholder='Select transport' className={selectTriggerStyles} />
+            <SelectContent className={selectContentStyles}>
+              {TRANSPORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value} className={selectItemStyles}>
+                  <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                    {option.label}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
 
-      {/* --- CAN Scan Results Table --- */}
-      {isCanbus && scanResults && (
-        <div className='mb-6 border rounded-lg overflow-hidden bg-white dark:bg-neutral-900'>
-          <table className='w-full text-left text-xs'>
-            <thead className='bg-neutral-100 dark:bg-neutral-800 font-bold'>
-              <tr><th className='p-2'>Node</th><th className='p-2'>Model</th><th className='p-2'>IO Specs</th><th className='p-2 text-right'>Action</th></tr>
-            </thead>
-            <tbody className='divide-y'>
-              {scanResults.map(dev => {
-                const specs = DEVICE_MAPPING_DATABASE[dev.product_code];
-                return (
-                  <tr key={dev.node_id}>
-                    <td className='p-2'>{dev.node_id} ({dev.hex_id})</td>
-                    <td className='p-2'>{specs?.name || dev.type}</td>
-                    <td className='p-2'>{specs ? `${specs.points} pts ${specs.type}` : '-'}</td>
-                    <td className='p-2 text-right'>
-                      <button onClick={() => handleAutoMap(dev)} disabled={!specs} className='text-brand font-bold hover:underline disabled:text-neutral-300'>Add to IO</button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        {/* TCP-specific fields */}
+        {transport === 'tcp' && (
+          <>
+            <div className='flex items-center gap-2'>
+              <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>IP Address</Label>
+              <InputWithRef
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
+                onBlur={handleHostBlur}
+                placeholder='127.0.0.1'
+                className={inputStyles}
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Port</Label>
+              <InputWithRef
+                type='number'
+                value={port}
+                onChange={(e) => setPort(e.target.value)}
+                onBlur={handlePortBlur}
+                placeholder='502'
+                className={inputStyles}
+              />
+            </div>
+          </>
+        )}
+
+        {/* RTU-specific fields */}
+        {transport === 'rtu' && (
+          <>
+            <div className='flex items-center gap-2'>
+              <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Serial Port</Label>
+              <SerialPortCombobox
+                value={serialPort}
+                onValueChange={handleSerialPortChange}
+                options={serialPortOptions}
+                isLoading={isLoadingSerialPorts}
+                placeholder='/dev/ttyUSB0'
+              />
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Baud Rate</Label>
+              <Select value={baudRate} onValueChange={handleBaudRateChange}>
+                <SelectTrigger withIndicator placeholder='Select baud rate' className={selectTriggerStyles} />
+                <SelectContent className={selectContentStyles}>
+                  {BAUD_RATE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className={selectItemStyles}>
+                      <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                        {option.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Parity</Label>
+              <Select value={parity} onValueChange={(v) => handleParityChange(v as 'N' | 'E' | 'O')}>
+                <SelectTrigger withIndicator placeholder='Select parity' className={selectTriggerStyles} />
+                <SelectContent className={selectContentStyles}>
+                  {PARITY_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className={selectItemStyles}>
+                      <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                        {option.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Stop Bits</Label>
+              <Select value={stopBits} onValueChange={handleStopBitsChange}>
+                <SelectTrigger withIndicator placeholder='Select stop bits' className={selectTriggerStyles} />
+                <SelectContent className={selectContentStyles}>
+                  {STOP_BITS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className={selectItemStyles}>
+                      <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                        {option.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='flex items-center gap-2'>
+              <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Data Bits</Label>
+              <Select value={dataBits} onValueChange={handleDataBitsChange}>
+                <SelectTrigger withIndicator placeholder='Select data bits' className={selectTriggerStyles} />
+                <SelectContent className={selectContentStyles}>
+                  {DATA_BITS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value} className={selectItemStyles}>
+                      <span className='text-start font-caption text-xs font-normal text-neutral-700 dark:text-neutral-100'>
+                        {option.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
+
+        {/* Common fields - Timeout and Slave ID */}
+        <div className='flex items-center gap-2'>
+          <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Timeout (ms)</Label>
+          <InputWithRef
+            type='number'
+            value={timeoutMs}
+            onChange={(e) => setTimeoutMs(e.target.value)}
+            onBlur={handleTimeoutBlur}
+            placeholder='1000'
+            className={inputStyles}
+          />
         </div>
-      )}
+        <div className='flex items-center gap-2'>
+          <Label className='whitespace-nowrap text-xs text-neutral-950 dark:text-white'>Slave ID</Label>
+          <InputWithRef
+            type='number'
+            value={slaveId}
+            onChange={(e) => setSlaveId(e.target.value)}
+            onBlur={handleSlaveIdBlur}
+            placeholder='1'
+            min={transport === 'rtu' ? SLAVE_ID_RTU_MIN : SLAVE_ID_TCP_MIN}
+            max={transport === 'rtu' ? SLAVE_ID_RTU_MAX : SLAVE_ID_TCP_MAX}
+            className={inputStyles}
+          />
+        </div>
+      </div>
 
       <div className='flex flex-1 flex-col overflow-hidden'>
         <div className='mb-2 flex items-center justify-between'>
@@ -756,16 +1073,9 @@ const RemoteDeviceEditor = () => {
                 <th className='w-[8%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
                   Offset
                 </th>
-                {isCanbus && (
-                  <th className='w-[10%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
-                    Node ID
-                  </th>
-                )}
-                {!isCanbus && (
-                  <th className='w-[22%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
-                    Function Code
-                  </th>
-                )}
+                <th className='w-[22%] px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
+                  Function Code
+                </th>
                 <th className='px-2 py-2 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300'>
                   Alias
                 </th>

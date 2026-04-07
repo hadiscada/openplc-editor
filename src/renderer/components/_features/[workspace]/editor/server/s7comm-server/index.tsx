@@ -201,7 +201,7 @@ const DataBlockModal = ({ isOpen, onClose, onSave, existingDbNumbers, editingBlo
               onChange={(e) => setDbNumber(e.target.value)}
               min='1'
               max='65535'
-              className='h-[30px] w-32 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+              className='h-[30px] w-32 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption !text-xs font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
             />
           </div>
 
@@ -213,7 +213,7 @@ const DataBlockModal = ({ isOpen, onClose, onSave, existingDbNumbers, editingBlo
               onChange={(e) => setDescription(e.target.value)}
               maxLength={128}
               placeholder='Optional description'
-              className='h-[30px] flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+              className='h-[30px] flex-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption !text-xs font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
             />
           </div>
 
@@ -225,7 +225,7 @@ const DataBlockModal = ({ isOpen, onClose, onSave, existingDbNumbers, editingBlo
               onChange={(e) => setSizeBytes(e.target.value)}
               min='1'
               max='65536'
-              className='h-[30px] w-32 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+              className='h-[30px] w-32 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption !text-xs font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
             />
           </div>
 
@@ -235,7 +235,7 @@ const DataBlockModal = ({ isOpen, onClose, onSave, existingDbNumbers, editingBlo
               <SelectTrigger
                 withIndicator
                 placeholder='Select mapping type'
-                className='flex h-[30px] flex-1 items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+                className='flex h-[30px] flex-1 items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption !text-xs font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
               />
               <SelectContent className='h-fit max-h-[200px] w-[--radix-select-trigger-width] overflow-y-auto rounded-lg border border-neutral-300 bg-white outline-none drop-shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'>
                 {BUFFER_TYPE_OPTIONS.map((option) => (
@@ -264,7 +264,7 @@ const DataBlockModal = ({ isOpen, onClose, onSave, existingDbNumbers, editingBlo
               onChange={(e) => setStartBuffer(e.target.value)}
               min='0'
               max='1023'
-              className='h-[30px] w-32 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+              className='h-[30px] w-32 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption !text-xs font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
             />
           </div>
 
@@ -318,7 +318,7 @@ const S7CommServerEditor = () => {
     editor,
     project,
     projectActions,
-    workspaceActions: { setEditingState },
+    sharedWorkspaceActions: { handleFileAndWorkspaceSavedState },
   } = useOpenPLCStore()
 
   const serverName = editor.type === 'plc-server' ? editor.meta.name : ''
@@ -389,18 +389,18 @@ const S7CommServerEditor = () => {
     (newEnabled: boolean) => {
       setEnabled(newEnabled)
       projectActions.updateS7CommServerSettings(serverName, { enabled: newEnabled })
-      setEditingState('unsaved')
+      handleFileAndWorkspaceSavedState(serverName)
     },
-    [serverName, projectActions, setEditingState],
+    [serverName, projectActions, handleFileAndWorkspaceSavedState],
   )
 
   const handleBindAddressChange = useCallback(
     (newAddress: string) => {
       setBindAddress(newAddress)
       projectActions.updateS7CommServerSettings(serverName, { bindAddress: newAddress })
-      setEditingState('unsaved')
+      handleFileAndWorkspaceSavedState(serverName)
     },
-    [serverName, projectActions, setEditingState],
+    [serverName, projectActions, handleFileAndWorkspaceSavedState],
   )
 
   const handlePortBlur = useCallback(() => {
@@ -408,49 +408,49 @@ const S7CommServerEditor = () => {
     if (!isNaN(portNum) && portNum >= 1 && portNum <= 65535) {
       if (portNum !== config?.server.port) {
         projectActions.updateS7CommServerSettings(serverName, { port: portNum })
-        setEditingState('unsaved')
+        handleFileAndWorkspaceSavedState(serverName)
       }
     } else {
       // Reset to last valid value when validation fails
       setPort((config?.server.port ?? DEFAULT_SERVER_SETTINGS.port).toString())
     }
-  }, [port, serverName, config?.server.port, projectActions, setEditingState])
+  }, [port, serverName, config?.server.port, projectActions, handleFileAndWorkspaceSavedState])
 
   const handleMaxClientsBlur = useCallback(() => {
     const num = parseInt(maxClients, 10)
     if (!isNaN(num) && num >= 1 && num <= 1024) {
       if (num !== config?.server.maxClients) {
         projectActions.updateS7CommServerSettings(serverName, { maxClients: num })
-        setEditingState('unsaved')
+        handleFileAndWorkspaceSavedState(serverName)
       }
     } else {
       // Reset to last valid value when validation fails
       setMaxClients((config?.server.maxClients ?? DEFAULT_SERVER_SETTINGS.maxClients).toString())
     }
-  }, [maxClients, serverName, config?.server.maxClients, projectActions, setEditingState])
+  }, [maxClients, serverName, config?.server.maxClients, projectActions, handleFileAndWorkspaceSavedState])
 
   const handlePduSizeBlur = useCallback(() => {
     const num = parseInt(pduSize, 10)
     if (!isNaN(num) && num >= 240 && num <= 960) {
       if (num !== config?.server.pduSize) {
         projectActions.updateS7CommServerSettings(serverName, { pduSize: num })
-        setEditingState('unsaved')
+        handleFileAndWorkspaceSavedState(serverName)
       }
     } else {
       // Reset to last valid value when validation fails
       setPduSize((config?.server.pduSize ?? DEFAULT_SERVER_SETTINGS.pduSize).toString())
     }
-  }, [pduSize, serverName, config?.server.pduSize, projectActions, setEditingState])
+  }, [pduSize, serverName, config?.server.pduSize, projectActions, handleFileAndWorkspaceSavedState])
 
   // Handlers for PLC identity
   const handlePlcIdentityBlur = useCallback(
     (field: string, value: string, currentValue?: string) => {
       if (value !== currentValue) {
         projectActions.updateS7CommPlcIdentity(serverName, { [field]: value })
-        setEditingState('unsaved')
+        handleFileAndWorkspaceSavedState(serverName)
       }
     },
-    [serverName, projectActions, setEditingState],
+    [serverName, projectActions, handleFileAndWorkspaceSavedState],
   )
 
   // Handlers for logging
@@ -460,9 +460,9 @@ const S7CommServerEditor = () => {
       if (field === 'logDataAccess') setLogDataAccess(value)
       if (field === 'logErrors') setLogErrors(value)
       projectActions.updateS7CommLogging(serverName, { [field]: value })
-      setEditingState('unsaved')
+      handleFileAndWorkspaceSavedState(serverName)
     },
-    [serverName, projectActions, setEditingState],
+    [serverName, projectActions, handleFileAndWorkspaceSavedState],
   )
 
   // Handlers for data blocks
@@ -483,21 +483,21 @@ const S7CommServerEditor = () => {
       } else {
         projectActions.addS7CommDataBlock(serverName, dataBlock)
       }
-      setEditingState('unsaved')
+      handleFileAndWorkspaceSavedState(serverName)
     },
-    [serverName, editingBlock, projectActions, setEditingState],
+    [serverName, editingBlock, projectActions, handleFileAndWorkspaceSavedState],
   )
 
   const handleDeleteDataBlock = useCallback(
     (dbNumber: number) => {
       projectActions.removeS7CommDataBlock(serverName, dbNumber)
-      setEditingState('unsaved')
+      handleFileAndWorkspaceSavedState(serverName)
     },
-    [serverName, projectActions, setEditingState],
+    [serverName, projectActions, handleFileAndWorkspaceSavedState],
   )
 
   const inputStyles =
-    'h-[30px] w-full rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+    'h-[30px] w-full rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption !text-xs font-medium text-neutral-850 outline-none focus:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
 
   if (protocol !== 's7comm') {
     return (
@@ -565,7 +565,7 @@ const S7CommServerEditor = () => {
                       <SelectTrigger
                         withIndicator
                         placeholder='Select network interface'
-                        className='flex h-[30px] w-full items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption text-cp-sm font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
+                        className='flex h-[30px] w-full items-center justify-between gap-1 rounded-md border border-neutral-300 bg-white px-2 py-1 font-caption !text-xs font-medium text-neutral-850 outline-none data-[state=open]:border-brand-medium-dark dark:border-neutral-850 dark:bg-neutral-950 dark:text-neutral-300'
                       />
                       <SelectContent className='h-fit max-h-[200px] w-[--radix-select-trigger-width] overflow-y-auto rounded-lg border border-neutral-300 bg-white outline-none drop-shadow-lg dark:border-brand-medium-dark dark:bg-neutral-950'>
                         {NETWORK_INTERFACE_OPTIONS.map((option) => (

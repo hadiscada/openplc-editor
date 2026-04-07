@@ -12,14 +12,12 @@ import {
   isArduinoTarget,
   isOpenPLCRuntimeTarget,
   isOpenPLCRuntimeV4Target,
+  isSimulatorTarget,
   validateRuntimeVersion,
 } from '@root/utils'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PinMappingTable } from './components/pin-mapping-table'
-
-// Polling interval for timing stats (only when device config screen is visible)
-const STATS_POLL_INTERVAL_MS = 2500
 
 const Board = memo(function () {
   const {
@@ -56,8 +54,8 @@ const Board = memo(function () {
   const openModal = useOpenPLCStore((state) => state.modalActions.openModal)
   const plcStatus = useOpenPLCStore((state): RuntimeConnection['plcStatus'] => state.runtimeConnection.plcStatus)
   const timingStats = useOpenPLCStore((state): TimingStats | null => state.runtimeConnection.timingStats)
-  const setTimingStats = useOpenPLCStore(
-    (state): ((stats: TimingStats | null) => void) => state.deviceActions.setTimingStats,
+  const setIncludeTimingStatsInPolling = useOpenPLCStore(
+    (state): ((include: boolean) => void) => state.deviceActions.setIncludeTimingStatsInPolling,
   )
 
   const [isPressed, setIsPressed] = useState(false)
@@ -77,7 +75,6 @@ const Board = memo(function () {
   const [communicationSelectIsOpen, setCommunicationSelectIsOpen] = useState(false)
   const communicationSelectRef = useRef<HTMLDivElement>(null)
   const portsReqIdRef = useRef<number>(0)
-  const isStatsPollingRef = useRef(false)
   const [isRefreshingPorts, setIsRefreshingPorts] = useState(false)
 
   const scrollToSelectedOption = (selectRef: React.RefObject<HTMLDivElement>, selectIsOpen: boolean) => {
@@ -93,7 +90,8 @@ const Board = memo(function () {
     const handleDeviceValueAtFirstRender = () => {
       const boardInfos = availableBoards.get(deviceBoard)
       if (boardInfos) {
-        const coreVersionAsString = `${boardInfos.coreVersion ? ` [${boardInfos.coreVersion}]` : ''}`
+        const showVersion = !isSimulatorTarget(boardInfos) && boardInfos.coreVersion
+        const coreVersionAsString = showVersion ? ` [${boardInfos.coreVersion}]` : ''
         const initialBoard = `${deviceBoard}${coreVersionAsString}`
         if (initialBoard === formattedBoardState) return
         setFormattedBoardState(initialBoard)
@@ -177,10 +175,11 @@ const Board = memo(function () {
 
       // Check if switching to a non-v4 target when servers or remote devices exist
       const isTargetV4 = isOpenPLCRuntimeV4Target(normalizedBoard)
+      const isTargetSimulator = isSimulatorTarget(targetBoardInfo)
       const hasServers = servers && servers.length > 0
       const hasRemoteDevices = remoteDevices && remoteDevices.length > 0
 
-      if (!isTargetV4 && (hasServers || hasRemoteDevices)) {
+      if (!isTargetV4 && !isTargetSimulator && (hasServers || hasRemoteDevices)) {
         setPendingBoardChange({ board: normalizedBoard, formattedBoard: board })
         setV4FeaturesAffected({ hasServers: !!hasServers, hasRemoteDevices: !!hasRemoteDevices })
         setShowV4FeaturesWarning(true)
@@ -289,69 +288,32 @@ const Board = memo(function () {
     }
   }, [runtimeIpAddress, connectionStatus, setRuntimeConnectionStatus, setRuntimeJwtToken, openModal, deviceBoard])
 
-  // Poll for timing stats only when device configuration screen is visible
-  // Status polling is handled globally by useRuntimePolling hook in workspace-screen.tsx
+  // Enable timing stats in global polling when this screen is visible
   useEffect(() => {
-    let statsInterval: NodeJS.Timeout | null = null
+    // Set the flag to include timing stats in the global status polling
+    setIncludeTimingStatsInPolling(true)
 
-    const pollTimingStats = async (): Promise<void> => {
-      // Skip if a poll is already in progress (prevents request backlog)
-      if (isStatsPollingRef.current) return
-
-      const currentState = useOpenPLCStore.getState()
-      const { connectionStatus: currentConnectionStatus, jwtToken: currentJwtToken } = currentState.runtimeConnection
-      const currentIpAddress = currentState.deviceDefinitions.configuration.runtimeIpAddress
-
-      if (currentConnectionStatus !== 'connected' || !currentJwtToken || !currentIpAddress) {
-        return
-      }
-
-      isStatsPollingRef.current = true
-
-      try {
-        // Request status WITH timing stats (include_stats=true)
-        const result = await window.bridge.runtimeGetStatus(currentIpAddress, currentJwtToken, true)
-
-        if (result.success && result.timingStats) {
-          setTimingStats(result.timingStats)
-        }
-        // Note: We don't handle failures here - global polling handles connection state
-        // We also don't update plcStatus here since global polling already does that
-      } catch {
-        // Silently ignore errors - global polling handles connection failures
-      } finally {
-        isStatsPollingRef.current = false
-      }
-    }
-
-    if (connectionStatus === 'connected') {
-      // Initial stats fetch
-      void pollTimingStats()
-      // Start periodic stats polling
-      statsInterval = setInterval(() => void pollTimingStats(), STATS_POLL_INTERVAL_MS)
-    } else {
-      // Clear timing stats when disconnected
-      setTimingStats(null)
-    }
-
+    // Clear the flag when leaving this screen
     return () => {
-      if (statsInterval) clearInterval(statsInterval)
+      setIncludeTimingStatsInPolling(false)
     }
-  }, [connectionStatus, setTimingStats])
+  }, [setIncludeTimingStatsInPolling])
 
   return (
     <DeviceEditorSlot heading='Board Settings'>
-      <div id='compile-only-container' className='flex select-none items-center gap-2'>
-        <Label htmlFor='compile-only-checkbox' className='w-fit text-xs text-neutral-950 dark:text-white'>
-          Compile Only
-        </Label>
-        <Checkbox
-          id='compile-only-checkbox'
-          className={compileOnly ? 'h-[14px] w-[14px] border-brand' : 'h-[14px] w-[14px] border-neutral-300'}
-          checked={compileOnly}
-          onCheckedChange={handleCompileOnly}
-        />
-      </div>
+      {!isSimulatorTarget(currentBoardInfo) && (
+        <div id='compile-only-container' className='flex select-none items-center gap-2'>
+          <Label htmlFor='compile-only-checkbox' className='w-fit text-xs text-neutral-950 dark:text-white'>
+            Compile Only
+          </Label>
+          <Checkbox
+            id='compile-only-checkbox'
+            className={compileOnly ? 'h-[14px] w-[14px] border-brand' : 'h-[14px] w-[14px] border-neutral-300'}
+            checked={compileOnly}
+            onCheckedChange={handleCompileOnly}
+          />
+        </div>
+      )}
       <div id='board-selection-container' className='flex h-2/5 min-h-[325px] w-full justify-between'>
         <div
           id='board-preferences-container'
@@ -382,7 +344,8 @@ const Board = memo(function () {
                 viewportRef={deviceSelectRef}
               >
                 {Array.from(availableBoards.entries()).map(([board, data]) => {
-                  const formattedBoard = `${board}${data.coreVersion ? ` [${data.coreVersion}]` : ''}`
+                  const showVersion = !isSimulatorTarget(data) && data.coreVersion
+                  const formattedBoard = `${board}${showVersion ? ` [${data.coreVersion}]` : ''}`
                   return (
                     <SelectItem
                       key={board}
@@ -401,7 +364,13 @@ const Board = memo(function () {
               </SelectContent>
             </Select>
           </div>
-          {isOpenPLCRuntimeTarget(currentBoardInfo) ? (
+          {isSimulatorTarget(currentBoardInfo) ? (
+            <div id='simulator-info' className='flex w-full flex-col items-start justify-start gap-4'>
+              <p className='text-xs text-neutral-600 dark:text-neutral-400'>
+                Built-in simulator — no configuration required. Press Build to compile and run.
+              </p>
+            </div>
+          ) : isOpenPLCRuntimeTarget(currentBoardInfo) ? (
             <>
               <div id='runtime-ip-address-field' className='flex w-full items-center justify-start gap-1'>
                 <Label
@@ -503,7 +472,7 @@ const Board = memo(function () {
               </button>
             </div>
           )}
-          {!isOpenPLCRuntimeTarget(currentBoardInfo) && (
+          {!isOpenPLCRuntimeTarget(currentBoardInfo) && !isSimulatorTarget(currentBoardInfo) && (
             <div id='board-specs' className='flex w-full flex-col items-start justify-start gap-4'>
               <Label id='board-specs-label' className='w-fit text-xs text-neutral-950 dark:text-white'>
                 Specs
@@ -527,8 +496,10 @@ const Board = memo(function () {
           </div>
         </div>
       </div>
-      <hr id='container-split' className='h-[1px] w-full self-stretch bg-brand-light' />
-      {isOpenPLCRuntimeTarget(currentBoardInfo) ? (
+      {!isSimulatorTarget(currentBoardInfo) && (
+        <hr id='container-split' className='h-[1px] w-full self-stretch bg-brand-light' />
+      )}
+      {isSimulatorTarget(currentBoardInfo) ? null : isOpenPLCRuntimeTarget(currentBoardInfo) ? (
         connectionStatus === 'connected' &&
         timingStats &&
         timingStats.scan_count > 0 && (

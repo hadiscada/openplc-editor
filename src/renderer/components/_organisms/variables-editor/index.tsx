@@ -52,6 +52,7 @@ const VariablesEditor = () => {
       systemConfigs: { shouldUseDarkMode },
       isDebuggerVisible,
     },
+    workspaceActions: { removeDebugVariable },
     project: {
       data: { pous, dataTypes },
     },
@@ -374,9 +375,16 @@ const VariablesEditor = () => {
     addSnapshot(editor.meta.name)
 
     const selectedRow = parseInt(editorVariables.selectedRow)
+    const variables = pous.filter((pou) => pou.data.name === editor.meta.name)[0].data.variables
+    const variableToDelete = variables[selectedRow]
+
+    if (variableToDelete) {
+      const compositeKey = `${editor.meta.name}:${variableToDelete.name}`
+      removeDebugVariable(compositeKey)
+    }
+
     deleteVariable({ scope: 'local', associatedPou: editor.meta.name, rowId: selectedRow })
 
-    const variables = pous.filter((pou) => pou.data.name === editor.meta.name)[0].data.variables
     if (selectedRow === variables.length - 1) {
       updateModelVariables({
         display: 'table',
@@ -771,7 +779,17 @@ const VariablesEditor = () => {
         typeChangedPairsToApply.push(pair)
       }
 
+      // Build a map of debug flags from existing variables
+      const debugByName = new Map(tableData.map((v) => [v.name.toLowerCase(), v.debug ?? false]))
+
+      // Preserve debug flags for renamed variables
+      for (const pair of renamedPairs) {
+        debugByName.set(pair.newName.toLowerCase(), pair.oldVariable.debug ?? false)
+      }
+
       const finalVariables = newVariables.map((newVar) => {
+        const debug = debugByName.get(newVar.name.toLowerCase()) ?? false
+
         const typeChangePair = typeChangedPairs.find((pair) => pair.name.toLowerCase() === newVar.name.toLowerCase())
 
         if (typeChangePair) {
@@ -780,11 +798,11 @@ const VariablesEditor = () => {
           )
 
           if (!wasApplied) {
-            return { ...newVar, type: typeChangePair.oldVariable.type }
+            return { ...newVar, type: typeChangePair.oldVariable.type, debug }
           }
         }
 
-        return newVar
+        return { ...newVar, debug }
       })
 
       const response = setPouVariables({

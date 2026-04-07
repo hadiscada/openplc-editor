@@ -30,6 +30,11 @@ const createWorkspaceSlice: StateCreator<WorkspaceSlice, [], [], WorkspaceSlice>
     isPlcLogsVisible: false,
     plcLogs: '',
     plcLogsLastId: null,
+    plcFilters: {
+      levels: { debug: true, info: true, warning: true, error: true },
+      searchTerm: '',
+      timestampFormat: 'full',
+    },
     close: {
       window: false,
       app: false,
@@ -141,6 +146,25 @@ const createWorkspaceSlice: StateCreator<WorkspaceSlice, [], [], WorkspaceSlice>
             label: '',
             type: null,
           }
+          // Reset debugger state
+          workspace.isDebuggerVisible = false
+          workspace.debuggerTargetIp = null
+          workspace.debugVariableIndexes = new Map()
+          workspace.debugVariableValues = new Map()
+          workspace.debugForcedVariables = new Map()
+          workspace.debugVariableTree = new Map()
+          workspace.debugExpandedNodes = new Map()
+          workspace.fbDebugInstances = new Map()
+          workspace.fbSelectedInstance = new Map()
+          // Reset PLC logs state
+          workspace.isPlcLogsVisible = false
+          workspace.plcLogs = ''
+          workspace.plcLogsLastId = null
+          workspace.plcFilters = {
+            levels: { debug: true, info: true, warning: true, error: true },
+            searchTerm: '',
+            timestampFormat: 'full',
+          }
         }),
       )
     },
@@ -223,6 +247,17 @@ const createWorkspaceSlice: StateCreator<WorkspaceSlice, [], [], WorkspaceSlice>
         }),
       )
     },
+    removeDebugVariable: (compositeKey: string): void => {
+      setState(
+        produce(({ workspace }: WorkspaceSlice) => {
+          workspace.debugVariableIndexes.delete(compositeKey)
+          workspace.debugVariableValues.delete(compositeKey)
+          workspace.debugForcedVariables.delete(compositeKey)
+          workspace.debugVariableTree.delete(compositeKey)
+          workspace.debugExpandedNodes.delete(compositeKey)
+        }),
+      )
+    },
     setPlcLogsVisible: (isVisible: boolean): void => {
       setState(
         produce(({ workspace }: WorkspaceSlice) => {
@@ -267,6 +302,27 @@ const createWorkspaceSlice: StateCreator<WorkspaceSlice, [], [], WorkspaceSlice>
         produce(({ workspace }: WorkspaceSlice) => {
           workspace.plcLogs = ''
           workspace.plcLogsLastId = null
+        }),
+      )
+    },
+    setPlcLevelFilter: (level: 'debug' | 'info' | 'warning' | 'error', enabled: boolean): void => {
+      setState(
+        produce(({ workspace }: WorkspaceSlice) => {
+          workspace.plcFilters.levels[level] = enabled
+        }),
+      )
+    },
+    setPlcSearchTerm: (term: string): void => {
+      setState(
+        produce(({ workspace }: WorkspaceSlice) => {
+          workspace.plcFilters.searchTerm = term
+        }),
+      )
+    },
+    setPlcTimestampFormat: (format: 'full' | 'time' | 'none'): void => {
+      setState(
+        produce(({ workspace }: WorkspaceSlice) => {
+          workspace.plcFilters.timestampFormat = format
         }),
       )
     },

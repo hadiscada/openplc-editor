@@ -74,6 +74,7 @@
   "help": {
     "label": "Help",
     "submenu": {
+      "communitySupport": "Community support",
       "about": "About"
     }
   },

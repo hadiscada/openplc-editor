@@ -1,5 +1,7 @@
 import { useOpenPLCStore } from '@root/renderer/store'
+import { RemoteDeviceIOPoint } from '@root/renderer/utils/remote-device-options'
 import { PLCPou } from '@root/types/PLC/open-plc'
+import { useMemo } from 'react'
 
 // ===================== Device screen selectors. =====================
 const rtuSelectors = {
@@ -16,12 +18,6 @@ const tcpSelectors = {
     useOpenPLCStore((state) => state.deviceDefinitions.configuration.communicationConfiguration.modbusTCP),
   useSetTCPConfig: () => useOpenPLCStore((state) => state.deviceActions.setTCPConfig),
   useSetWifiConfig: () => useOpenPLCStore((state) => state.deviceActions.setWifiConfig),
-}
-
-const canSelectors = {
-  useCan: () =>
-    useOpenPLCStore((state) => state.deviceDefinitions.configuration.communicationConfiguration.communicationPreferences.enabledCAN ),
-  useSetCanConfig: () => useOpenPLCStore((state) => state.deviceActions.setCANConfig),
 }
 
 const staticHostSelectors = {
@@ -80,6 +76,42 @@ const communicationSelectors = {
   useSetCommunicationPreferences: () => useOpenPLCStore((state) => state.deviceActions.setCommunicationPreferences),
 }
 
+// ===================== Remote Device selectors. =====================
+const remoteDeviceSelectors = {
+  /**
+   * Returns all IO points from all remote devices with their device and group context.
+   * Used to populate the location dropdown with remote device aliases.
+   * Uses useMemo to prevent unnecessary recomputations when the data hasn't changed.
+   */
+  useRemoteDeviceIOPoints: (): RemoteDeviceIOPoint[] => {
+    const remoteDevices = useOpenPLCStore((state) => state.project.data.remoteDevices)
+
+    return useMemo(() => {
+      if (!remoteDevices) return []
+
+      const ioPoints: RemoteDeviceIOPoint[] = []
+
+      for (const device of remoteDevices) {
+        if (!device.modbusTcpConfig?.ioGroups) continue
+        for (const ioGroup of device.modbusTcpConfig.ioGroups) {
+          for (const point of ioGroup.ioPoints) {
+            ioPoints.push({
+              deviceName: device.name,
+              ioGroupName: ioGroup.name,
+              ioPointId: point.id,
+              ioPointName: point.name,
+              ioPointType: point.type,
+              iecLocation: point.iecLocation,
+              alias: point.alias,
+            })
+          }
+        }
+      }
+      return ioPoints
+    }, [remoteDevices])
+  },
+}
+
 // ===================== Search selectors. =====================
 const searchSelectors = {
   useSearchQuery: () => useOpenPLCStore((state) => state.searchQuery),
@@ -125,6 +157,11 @@ const workspaceSelectors = {
   useEditingState: () => useOpenPLCStore((state) => state.workspace.editingState),
   useSetEditingState: () => useOpenPLCStore((state) => state.workspaceActions.setEditingState),
   useSelectedProjectTreeLeaf: () => useOpenPLCStore((state) => state.workspace.selectedProjectTreeLeaf),
+  useRecent: () => useOpenPLCStore((state) => state.workspace.recent),
+  useSetRecent: () => useOpenPLCStore((state) => state.workspaceActions.setRecent),
+  useSetModalOpen: () => useOpenPLCStore((state) => state.workspaceActions.setModalOpen),
+  useSwitchAppTheme: () => useOpenPLCStore((state) => state.workspaceActions.switchAppTheme),
+  useToggleCollapse: () => useOpenPLCStore((state) => state.workspaceActions.toggleCollapse),
 }
 
 // ===================== Console selectors. =====================
@@ -147,6 +184,12 @@ const fileSelectors = {
 const sharedSelectors = {
   useHandleFileAndWorkspaceSavedState: () =>
     useOpenPLCStore((state) => state.sharedWorkspaceActions.handleFileAndWorkspaceSavedState),
+  useCloseProject: () => useOpenPLCStore((state) => state.sharedWorkspaceActions.closeProject),
+  useOpenProject: () => useOpenPLCStore((state) => state.sharedWorkspaceActions.openProject),
+  useSaveProject: () => useOpenPLCStore((state) => state.sharedWorkspaceActions.saveProject),
+  useSaveFile: () => useOpenPLCStore((state) => state.sharedWorkspaceActions.saveFile),
+  useCloseFile: () => useOpenPLCStore((state) => state.sharedWorkspaceActions.closeFile),
+  useOpenProjectByPath: () => useOpenPLCStore((state) => state.sharedWorkspaceActions.openProjectByPath),
 }
 
 // ===================== Ladder selectors. =====================
@@ -155,9 +198,38 @@ const ladderSelectors = {
   useUpdateModelLadder: () => useOpenPLCStore((state) => state.editorActions.updateModelLadder),
 }
 
+// ===================== Modal selectors. =====================
+const modalSelectors = {
+  useOpenModal: () => useOpenPLCStore((state) => state.modalActions.openModal),
+}
+
+// ===================== Snapshot selectors. =====================
+const snapshotSelectors = {
+  useUndo: () => useOpenPLCStore((state) => state.snapshotActions.undo),
+  useRedo: () => useOpenPLCStore((state) => state.snapshotActions.redo),
+}
+
+// ===================== System config selectors. =====================
+const systemConfigSelectors = {
+  useOS: () => useOpenPLCStore((state) => state.workspace.systemConfigs.OS),
+  useShouldUseDarkMode: () => useOpenPLCStore((state) => state.workspace.systemConfigs.shouldUseDarkMode),
+}
+
+// ===================== Title bar selectors. =====================
+const titleBarSelectors = {
+  useOS: () => useOpenPLCStore((state) => state.workspace.systemConfigs.OS),
+  useProjectPath: () => useOpenPLCStore((state) => state.project.meta.path),
+}
+
+// ===================== Menu selectors. =====================
+const menuSelectors = {
+  useProject: () => useOpenPLCStore((state) => state.project),
+  useDeviceDefinitions: () => useOpenPLCStore((state) => state.deviceDefinitions),
+  useSelectedTab: () => useOpenPLCStore((state) => state.selectedTab),
+}
+
 export {
   boardSelectors,
-  canSelectors,
   communicationSelectors,
   compileOnlySelectors,
   consoleSelectors,
@@ -166,15 +238,21 @@ export {
   editorSelectors,
   fileSelectors,
   ladderSelectors,
+  menuSelectors,
+  modalSelectors,
   pinSelectors,
   pouSelectors,
   projectSelectors,
+  remoteDeviceSelectors,
   resourceSelectors,
   rtuSelectors,
   searchSelectors,
   sharedSelectors,
+  snapshotSelectors,
   staticHostSelectors,
+  systemConfigSelectors,
   tcpSelectors,
+  titleBarSelectors,
   variablesSelectors,
   workspaceSelectors,
 }

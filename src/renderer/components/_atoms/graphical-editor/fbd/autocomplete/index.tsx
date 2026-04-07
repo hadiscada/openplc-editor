@@ -5,6 +5,7 @@ import { extractNumberAtEnd } from '@root/renderer/store/slices/project/validati
 import { PLCVariable } from '@root/types/PLC'
 import { cn } from '@root/utils'
 import { newGraphicalEditorNodeID } from '@root/utils/new-graphical-editor-node-id'
+import { expandArrayVariables } from '@root/utils/PLC/array-variable-utils'
 import { Node } from '@xyflow/react'
 import { isArray } from 'lodash'
 import { ComponentPropsWithRef, forwardRef, useMemo } from 'react'
@@ -95,8 +96,10 @@ const FBDBlockAutoComplete = forwardRef<HTMLDivElement, FBDBlockAutoCompleteProp
       }
     }, [pou])
 
+    const expandedVariables = expandArrayVariables(variables.all)
+
     const filteredVariables = block.type?.includes('variable')
-      ? variables.all
+      ? expandedVariables
           .filter(
             (variable) =>
               variable.name.toLowerCase().includes(valueToSearch.toLowerCase()) &&
@@ -194,7 +197,14 @@ const FBDBlockAutoComplete = forwardRef<HTMLDivElement, FBDBlockAutoCompleteProp
         scope: 'local',
         associatedPou: editor.meta.name,
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        toast({
+          title: res.title ?? 'Error',
+          description: res.message ?? 'Failed to create variable',
+          variant: 'fail',
+        })
+        return
+      }
 
       const variable = res.data as PLCVariable | undefined
 
@@ -240,9 +250,11 @@ const FBDBlockAutoComplete = forwardRef<HTMLDivElement, FBDBlockAutoCompleteProp
         return
       }
 
-      const selectedVariable =
-        filteredVariables.find((variableItem) => variableItem.id === variable.id) ??
-        filteredVariables.find((variableItem) => variableItem.name === variable.name)
+      // Look up by name to ensure correct selection for continuation/connector blocks
+      // (all connection nodes share the same ID, so ID lookup would always match the first item)
+      const selectedVariable = filteredVariables.find(
+        (variableItem) => variableItem.name.toLowerCase() === variable.name.toLowerCase(),
+      )
       if (!selectedVariable) {
         submitAddVariable({ variableName: valueToSearch })
         return

@@ -36,6 +36,7 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
     plcStatus: null,
     ipAddress: null,
     timingStats: null,
+    includeTimingStatsInPolling: false,
   },
 
   deviceActions: {
@@ -70,12 +71,19 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
     },
     clearDeviceDefinitions: (): void => {
       setState(
-        produce(({ deviceDefinitions }: DeviceSlice) => {
+        produce(({ deviceDefinitions, runtimeConnection }: DeviceSlice) => {
           deviceDefinitions.configuration = defaultDeviceConfiguration
           deviceDefinitions.pinMapping = {
             pins: [],
             currentSelectedPinTableRow: -1,
           }
+          // Reset runtime connection state to disconnect from any active runtime
+          runtimeConnection.jwtToken = null
+          runtimeConnection.connectionStatus = 'disconnected'
+          runtimeConnection.plcStatus = null
+          runtimeConnection.ipAddress = null
+          runtimeConnection.timingStats = null
+          runtimeConnection.includeTimingStatsInPolling = false
         }),
       )
     },
@@ -340,7 +348,7 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
           deviceDefinitions.configuration.communicationPort = communicationPort
         }),
       )
-    },    
+    },
     setCommunicationPreferences: (preferences) => {
       setState(
         produce(({ deviceDefinitions: { configuration }, deviceUpdated }: DeviceSlice) => {
@@ -354,9 +362,6 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
           }
           if (preferences.enableDHCP !== undefined) {
             configuration.communicationConfiguration.communicationPreferences.enabledDHCP = preferences.enableDHCP
-          }
-          if (preferences.enableCAN !== undefined) {
-            configuration.communicationConfiguration.communicationPreferences.enabledCAN = preferences.enableCAN
           }
         }),
       )
@@ -399,22 +404,6 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
             case 'tcpMacAddress':
               deviceDefinitions.configuration.communicationConfiguration.modbusTCP.tcpMacAddress = value
               break
-            default:
-              break
-          }
-        }),
-      )
-    },
-    setCANConfig: (canConfigOption): void => {
-      setState(
-        produce(({ deviceDefinitions, deviceUpdated }: DeviceSlice) => {
-          deviceUpdated.updated = true // Mark device as updated when setting TCP configuration
-
-          const { canConfig, value } = canConfigOption
-          switch (canConfig) {
-            case 'canRate':              
-              deviceDefinitions.configuration.communicationConfiguration.canBus.canRate = value
-              break            
             default:
               break
           }
@@ -500,6 +489,13 @@ const createDeviceSlice: StateCreator<DeviceSlice, [], [], DeviceSlice> = (setSt
         }),
       )
     },
+    setIncludeTimingStatsInPolling: (include: boolean): void => {
+      setState(
+        produce(({ runtimeConnection }: DeviceSlice) => {
+          runtimeConnection.includeTimingStatsInPolling = include
+        }),
+      )
+    },
     setTemporaryDhcpIp: (ipAddress: string | undefined): void => {
       setState(
         produce(({ deviceDefinitions }: DeviceSlice) => {
@@ -527,9 +523,6 @@ function mergeDeviceConfigWithDefaults(
       modbusTCP: provided.communicationConfiguration?.modbusTCP?.tcpInterface
         ? provided.communicationConfiguration.modbusTCP
         : defaults.communicationConfiguration.modbusTCP,
-      canBus: provided.communicationConfiguration?.canBus?.canRate
-        ? provided.communicationConfiguration.canBus
-        : defaults.communicationConfiguration.canBus,
       communicationPreferences: {
         ...defaults.communicationConfiguration.communicationPreferences,
         ...(provided.communicationConfiguration?.communicationPreferences || {}),

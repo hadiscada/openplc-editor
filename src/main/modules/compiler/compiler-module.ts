@@ -12,11 +12,11 @@ import { CreateXMLFile } from '@root/main/utils'
 import { ProjectState } from '@root/renderer/store/slices'
 import type { DeviceConfiguration, DevicePin } from '@root/types/PLC/devices'
 import { XmlGenerator } from '@root/utils'
-import { generateCanbusConfig } from '@root/utils/canbus/generate-canbus-config'
 import { type CppPouData as CppPouDataCode, generateCBlocksCode } from '@root/utils/cpp/generateCBlocksCode'
 import { type CppPouData as CppPouDataHeader, generateCBlocksHeader } from '@root/utils/cpp/generateCBlocksHeader'
 import { generateModbusMasterConfig } from '@root/utils/modbus/generate-modbus-master-config'
 import { generateModbusSlaveConfig } from '@root/utils/modbus/generate-modbus-slave-config'
+import { generateOpcUaConfig, OpcUaConfigError } from '@root/utils/opcua'
 import { parsePlcStatus } from '@root/utils/plc-status'
 import { getRuntimeHttpsOptions } from '@root/utils/runtime-https-config'
 import { generateS7CommConfig } from '@root/utils/s7comm'
@@ -687,11 +687,13 @@ class CompilerModule {
     projectPath,
     buildMD5Hash,
     boardTarget,
+    boardRuntime,
     _handleOutputData,
   }: {
     projectPath: string
     boardTarget: string
     buildMD5Hash: string
+    boardRuntime: string
     _handleOutputData: HandleOutputDataCallback
   }) {
     let DEFINES_CONTENT: string = ''
@@ -753,10 +755,19 @@ class CompilerModule {
 
     // 3.2. Device Configuration
     DEFINES_CONTENT += '//Comms Configuration\n'
-    DEFINES_CONTENT += `#define MBSERIAL_IFACE ${modbusRTU.rtuInterface}\n`
-    DEFINES_CONTENT += `#define MBSERIAL_BAUD ${modbusRTU.rtuBaudRate}\n`
-    if (modbusRTU.rtuSlaveId !== null) DEFINES_CONTENT += `#define MBSERIAL_SLAVE ${modbusRTU.rtuSlaveId}\n`
-    if (modbusRTU.rtuRS485ENPin !== null) DEFINES_CONTENT += `#define MBSERIAL_TXPIN ${modbusRTU.rtuRS485ENPin}\n`
+    if (boardRuntime === 'simulator') {
+      // Simulator forces fixed Modbus RTU settings over emulated USART0.
+      // On ATmega2560, Serial = USART0. avr8js bridges usart0.
+      DEFINES_CONTENT += '#define SIMULATOR_MODE\n'
+      DEFINES_CONTENT += '#define MBSERIAL_IFACE Serial\n'
+      DEFINES_CONTENT += '#define MBSERIAL_BAUD 115200\n'
+      DEFINES_CONTENT += '#define MBSERIAL_SLAVE 1\n'
+    } else {
+      DEFINES_CONTENT += `#define MBSERIAL_IFACE ${modbusRTU.rtuInterface}\n`
+      DEFINES_CONTENT += `#define MBSERIAL_BAUD ${modbusRTU.rtuBaudRate}\n`
+      if (modbusRTU.rtuSlaveId !== null) DEFINES_CONTENT += `#define MBSERIAL_SLAVE ${modbusRTU.rtuSlaveId}\n`
+      if (modbusRTU.rtuRS485ENPin !== null) DEFINES_CONTENT += `#define MBSERIAL_TXPIN ${modbusRTU.rtuRS485ENPin}\n`
+    }
     if (modbusTCP.tcpMacAddress !== null)
       DEFINES_CONTENT += `#define MBTCP_MAC ${FormatMacAddress(modbusTCP.tcpMacAddress)}\n`
     // OBS: This is giving us an empty string and this is being printed as a space
@@ -769,7 +780,7 @@ class CompilerModule {
     if (modbusTCP.tcpStaticHostConfiguration.subnet !== null)
       DEFINES_CONTENT += `#define MBTCP_SUBNET ${modbusTCP.tcpStaticHostConfiguration.subnet.replaceAll('.', ',')}\n`
 
-    if (communicationPreferences.enabledRTU) {
+    if (communicationPreferences.enabledRTU || boardRuntime === 'simulator') {
       DEFINES_CONTENT += '#define MBSERIAL\n'
       DEFINES_CONTENT += '#define MODBUS_ENABLED\n'
     }
@@ -875,6 +886,7 @@ class CompilerModule {
   async handlePatchGeneratedFiles(compilationPath: string, handleOutputData: HandleOutputDataCallback) {
     const pousCFilePath = join(compilationPath, 'src', 'POUS.c')
     const res0FilePath = join(compilationPath, 'src', 'Res0.c')
+    const config0FilePath = join(compilationPath, 'src', 'Config0.c')
 
     const pousCContent = await readFile(pousCFilePath, { encoding: 'utf8' })
     const patchedPousCContent = `#include "POUS.h"\n#include "Config0.h"\n\n${pousCContent}`
@@ -886,6 +898,18 @@ class CompilerModule {
 
     await writeFile(res0FilePath, patchedRes0FileContent, { encoding: 'utf8' })
     handleOutputData('Required files patched', 'info')
+
+    // Unity build: Rename .c files to .inc so Arduino build system doesn't compile them separately.
+    // These files are #included by glueVars.c as a single compilation unit to avoid
+    // duplicate static function definitions that cause binary size bloat.
+    const pousIncFilePath = join(compilationPath, 'src', 'POUS.inc')
+    const res0IncFilePath = join(compilationPath, 'src', 'Res0.inc')
+    const config0IncFilePath = join(compilationPath, 'src', 'Config0.inc')
+
+    await fs.rename(pousCFilePath, pousIncFilePath)
+    await fs.rename(res0FilePath, res0IncFilePath)
+    await fs.rename(config0FilePath, config0IncFilePath)
+    handleOutputData('Files renamed to .inc for unity build', 'info')
   }
 
   async handleGenerateArduinoCppFile(projectPath: string, boardTarget: string) {
@@ -988,6 +1012,14 @@ class CompilerModule {
         ...buildProjectFlags,
         '--build-property',
         `compiler.cpp.extra_flags=${boardHalsContent['cxx_flags'].map((f) => f).join(' ')}`,
+      ]
+    }
+
+    if (boardHalsContent['ld_flags']) {
+      buildProjectFlags = [
+        ...buildProjectFlags,
+        '--build-property',
+        `compiler.c.elf.extra_flags=${boardHalsContent['ld_flags'].map((f: string) => f).join(' ')}`,
       ]
     }
 
@@ -1128,9 +1160,7 @@ class CompilerModule {
           await addFilesToZip(fullPath, zipFolder, zipPath)
         } else {
           const fileContent = await fs.readFile(fullPath)
-          //zipFolder.file(zipPath, fileContent)
-          const uint8Array = new Uint8Array(fileContent);
-          zipFolder.file(zipPath, uint8Array);
+          zipFolder.file(zipPath, fileContent)
         }
       }
     }
@@ -1213,21 +1243,71 @@ class CompilerModule {
     }
   }
 
-  async handleGenerateCanbusConfig(
+  /**
+   * Generate OPC-UA server configuration for Runtime v4.
+   * Reads debug.c to resolve variable indices and generates opcua.json.
+   */
+  async handleGenerateOpcUaConfig(
     sourceTargetFolderPath: string,
     projectData: ProjectState['data'],
     handleOutputData: HandleOutputDataCallback,
   ): Promise<void> {
-    const canConfig = generateCanbusConfig(projectData.remoteDevices)
+    try {
+      // Check if there's an enabled OPC-UA server
+      const opcuaServer = projectData.servers?.find(
+        (s) => s.protocol === 'opcua' && s.opcuaServerConfig?.server.enabled,
+      )
 
-    if (canConfig) {
-      const confFolderPath = join(sourceTargetFolderPath, 'conf')
-      await mkdir(confFolderPath, { recursive: true })
-      const configFilePath = join(confFolderPath, 'canbus_conf.json')
-      await writeFile(configFilePath, canConfig, 'utf-8')
-      handleOutputData('Generated conf/canbus_conf.json', 'info')
-    } else {
-      handleOutputData('No CAN devices configured, skipping canbus_conf.json generation', 'info')
+      if (!opcuaServer || !opcuaServer.opcuaServerConfig) {
+        handleOutputData('No OPC-UA server configured, skipping opcua.json generation', 'info')
+        return
+      }
+
+      // Read the debug.c file generated by xml2st
+      const debugCPath = join(sourceTargetFolderPath, 'debug.c')
+      let debugContent: string
+
+      try {
+        debugContent = await readFile(debugCPath, 'utf-8')
+      } catch {
+        handleOutputData('Warning: Could not read debug.c file. OPC-UA variable indices may not be resolved.', 'error')
+        debugContent = ''
+      }
+
+      // Get instances from Resources configuration for index resolution
+      const instances = projectData.configuration.resource.instances.map((inst) => ({
+        name: inst.name,
+        task: inst.task,
+        program: inst.program,
+      }))
+
+      // Generate the OPC-UA configuration
+      const opcuaJson = generateOpcUaConfig(projectData.servers, debugContent, instances)
+
+      if (opcuaJson) {
+        // Ensure conf directory exists
+        const confFolderPath = join(sourceTargetFolderPath, 'conf')
+        await mkdir(confFolderPath, { recursive: true })
+
+        // Write the configuration file
+        const configFilePath = join(confFolderPath, 'opcua.json')
+        await writeFile(configFilePath, opcuaJson, 'utf-8')
+        handleOutputData('Generated conf/opcua.json', 'info')
+
+        // Log the number of configured nodes
+        const nodeCount = opcuaServer.opcuaServerConfig.addressSpace.nodes.length
+        handleOutputData(`OPC-UA Address Space: ${nodeCount} node(s) configured`, 'info')
+      } else {
+        handleOutputData('OPC-UA server enabled but no configuration generated', 'info')
+      }
+    } catch (error) {
+      if (error instanceof OpcUaConfigError) {
+        handleOutputData(`OPC-UA Configuration Error:\n${error.message}`, 'error')
+      } else {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        handleOutputData(`Failed to generate OPC-UA config: ${errorMessage}`, 'error')
+      }
+      throw error
     }
   }
 
@@ -1660,8 +1740,8 @@ class CompilerModule {
             _mainProcessPort.postMessage({ logLevel, message: data })
           })
 
-          // Generate CANbus config for Runtime v4
-          await this.handleGenerateCanbusConfig(sourceTargetFolderPath, projectData, (data, logLevel) => {
+          // Generate OPC-UA config for Runtime v4
+          await this.handleGenerateOpcUaConfig(sourceTargetFolderPath, projectData, (data, logLevel) => {
             _mainProcessPort.postMessage({ logLevel, message: data })
           })
 
@@ -1958,6 +2038,7 @@ class CompilerModule {
         projectPath: normalizedProjectPath,
         boardTarget,
         buildMD5Hash,
+        boardRuntime,
         _handleOutputData: (data, logLevel) => {
           _mainProcessPort.postMessage({ logLevel, message: data })
         },
@@ -2004,7 +2085,25 @@ class CompilerModule {
       return
     }
 
-    // Step 13: Upload program to board if necessary
+    // Step 13: Upload program to board or load into simulator
+    if (boardRuntime === 'simulator') {
+      // For simulator targets, send the HEX firmware path back to the renderer.
+      // Derive the build sub-directory from the platform FQBN (e.g. "arduino:avr:mega" → "arduino.avr.mega")
+      // so it stays in sync with the hals.json entry.
+      const fqbnSubDir = halsContent[boardTarget]['platform'].replaceAll(':', '.')
+      const hexPath = join(compilationPath, 'examples', 'Baremetal', 'build', fqbnSubDir, 'Baremetal.ino.hex')
+      _mainProcessPort.postMessage({
+        logLevel: 'info',
+        message: 'Compilation successful. Loading firmware into simulator...',
+      })
+      _mainProcessPort.postMessage({
+        simulatorFirmwarePath: hexPath,
+        closePort: true,
+      })
+      _mainProcessPort.close()
+      return
+    }
+
     if (!compileOnly) {
       _mainProcessPort.postMessage({ logLevel: 'info', message: 'Uploading program to board...' })
       try {

@@ -56,12 +56,14 @@ const runtimeConnectionSchema = z.object({
   plcStatus: z.enum(['INIT', 'RUNNING', 'STOPPED', 'ERROR', 'EMPTY', 'UNKNOWN']).nullable(),
   ipAddress: z.string().nullable(),
   timingStats: timingStatsSchema.nullable(),
+  // Flag to include timing stats in status polling (set by board.tsx when visible)
+  includeTimingStatsInPolling: z.boolean(),
 })
 
 type RuntimeConnection = z.infer<typeof runtimeConnectionSchema>
 
 const availableBoardInfo = z.object({
-  compiler: z.enum(['arduino-cli', 'openplc-compiler']),
+  compiler: z.enum(['arduino-cli', 'openplc-compiler', 'simulator']),
   core: z.string(),
   preview: z.string(),
   specs: z.object({
@@ -128,10 +130,6 @@ const setTCPConfigParams = z.discriminatedUnion('tcpConfig', [
   z.object({ tcpConfig: z.literal('tcpMacAddress'), value: z.string() }),
 ])
 
-const setCANConfigParams = z.discriminatedUnion('canConfig', [
-  z.object({ canConfig: z.literal('canRate'), value: z.enum(['1000000']) }),  
-])
-
 const deviceActionSchema = z.object({
   setAvailableOptions: z
     .function()
@@ -175,11 +173,10 @@ const deviceActionSchema = z.object({
   setCommunicationPort: z.function().args(z.string()).returns(z.void()),
   setCommunicationPreferences: z
     .function()
-    .args(z.object({ enableRTU: z.boolean(), enableTCP: z.boolean(), enableDHCP: z.boolean(), enableCAN: z.boolean() }).partial())
+    .args(z.object({ enableRTU: z.boolean(), enableTCP: z.boolean(), enableDHCP: z.boolean() }).partial())
     .returns(z.void()),
   setRTUConfig: z.function().args(setRTUConfigParams).returns(z.void()),
   setTCPConfig: z.function().args(setTCPConfigParams).returns(z.void()),
-  setCANConfig: z.function().args(setCANConfigParams).returns(z.void()),
   setWifiConfig: z
     .function()
     .args(z.object({ tcpWifiSSID: z.string(), tcpWifiPassword: z.string() }).partial())
@@ -197,11 +194,13 @@ const deviceActionSchema = z.object({
     .args(z.enum(['INIT', 'RUNNING', 'STOPPED', 'ERROR', 'EMPTY', 'UNKNOWN']).nullable())
     .returns(z.void()),
   setTimingStats: z.function().args(timingStatsSchema.nullable()).returns(z.void()),
+  setIncludeTimingStatsInPolling: z.function().args(z.boolean()).returns(z.void()),
   setTemporaryDhcpIp: z.function().args(z.string().optional()).returns(z.void()),
 })
 
 type DeviceActions = Omit<z.infer<typeof deviceActionSchema>, 'setTimingStats'> & {
   setTimingStats: (stats: TimingStats | null) => void
+  setIncludeTimingStatsInPolling: (include: boolean) => void
 }
 
 type DeviceSlice = DeviceState & {
