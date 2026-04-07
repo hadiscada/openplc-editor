@@ -585,6 +585,7 @@ const ModbusIOGroupSchema = z.object({
   length: z.number(),
   errorHandling: ModbusErrorHandlingSchema,
   ioPoints: z.array(ModbusIOPointSchema),
+  nodeId: z.number().optional(), // For CANbus support
 })
 type ModbusIOGroup = z.infer<typeof ModbusIOGroupSchema>
 
@@ -607,7 +608,7 @@ const ModbusTcpConfigSchema = z.object({
 })
 type ModbusTcpConfig = z.infer<typeof ModbusTcpConfigSchema>
 
-const PLCRemoteDeviceProtocolSchema = z.enum(['modbus-tcp', 'ethernet-ip', 'ethercat', 'profinet'])
+const PLCRemoteDeviceProtocolSchema = z.enum(['modbus-tcp', 'ethernet-ip', 'ethercat', 'profinet', 'canbus'])
 type PLCRemoteDeviceProtocol = z.infer<typeof PLCRemoteDeviceProtocolSchema>
 
 // ---- EtherCAT Configuration Schemas ----
