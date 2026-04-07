@@ -19,10 +19,11 @@ const AboutModal = () => {
   const closeModal = () => {
     setModalOpen('aboutOpenPlc', false)
   }
-  const title = 'Gespant Logic 1.0.1'
-  const releaseDate = 'Release: 2026-01-09'
+  const title = `Gespant Logic ${APP_VERSION}`
+  const releaseDate = `Release: ${BUILD_DATE}`
   const description = 'IDE for the Gespant PLC, compliant with the IEC 61131-3 international standard.'
-  const copyright = '© 2026 Gespant Technology'
+  const copyrightYear = new Date().getFullYear()
+  const copyright = `© ${copyrightYear} Gespant Technology`
   const linkUrl = 'https://winenerji.com'
 
   const handleOpenAboutLink = () => {
